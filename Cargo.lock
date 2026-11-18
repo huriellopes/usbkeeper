@@ -4227,6 +4227,7 @@ dependencies = [
  "tauri-plugin-dialog",
  "ts-rs",
  "usbkeeper-core",
+ "usbkeeper-guide",
  "usbkeeper-history",
  "usbkeeper-linux",
  "usbkeeper-smart",

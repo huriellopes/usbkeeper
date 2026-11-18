@@ -25,6 +25,7 @@ ts-rs.workspace = true
 usbkeeper-core = { workspace = true, features = ["ts"] }
 usbkeeper-history = { workspace = true, features = ["ts"] }
 usbkeeper-smart = { workspace = true, features = ["ts"] }
+usbkeeper-guide.workspace = true
 
 [target.'cfg(target_os = "linux")'.dependencies]
 usbkeeper-linux.workspace = true

@@ -246,6 +246,19 @@ mod tests {
     }
 
     #[test]
+    fn every_gui_help_link_points_to_an_existing_topic() {
+        let ts = include_str!("../../../apps/gui/src/lib/guideLinks.ts");
+        let ids: Vec<&str> = ts.split('"').skip(1).step_by(2).collect();
+        assert!(!ids.is_empty());
+        for id in ids {
+            assert!(
+                IDS.contains(&id),
+                "guideLinks.ts aponta para tópico inexistente: {id}"
+            );
+        }
+    }
+
+    #[test]
     fn glossary_renders_as_definition_list() {
         let md = find("glossario").unwrap().markdown;
         assert!(to_html(md).contains("<dl>"));

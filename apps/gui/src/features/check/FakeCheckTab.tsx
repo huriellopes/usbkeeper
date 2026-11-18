@@ -3,6 +3,8 @@ import type { FakeReport } from "../../lib/bindings/FakeReport";
 import { duration, humanBytes } from "../../lib/format";
 import { ConfirmDialog } from "../ops/ConfirmDialog";
 import { useOperation } from "../ops/useOperation";
+import { GUIDE } from "../../lib/guideLinks";
+import { HelpButton } from "../help/HelpButton";
 
 const card = { border: "1px solid var(--line)" };
 
@@ -16,6 +18,10 @@ export function FakeCheckTab({ view, onReformat }: { view: DeviceView; onReforma
   const title = report?.verdict === "genuine" ? "GENUÍNO" : report?.verdict === "fake" ? "FALSIFICADO" : "COM DEFEITO";
   return (
     <div className="flex flex-col gap-5">
+      <p className="text-sm" style={{ color: "var(--muted)" }}>
+        Descobre se a capacidade anunciada existe de verdade. Qual teste escolher?
+        <HelpButton topic={GUIDE.fake} label="pendrives falsificados" />
+      </p>
       <div className="grid gap-3 sm:grid-cols-2">
         <button
           type="button"

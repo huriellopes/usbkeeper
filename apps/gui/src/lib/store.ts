@@ -18,6 +18,9 @@ type AppState = {
   error: string | null;
   ops: Record<string, RunningOp>; // device → operação em andamento
   finished: Record<string, Record<string, OpFinished>>; // device → kind → último resultado
+  help: { open: boolean; topic: string };
+  openHelp: (topic?: string) => void;
+  closeHelp: () => void;
   setDevices: (d: DeviceView[]) => void;
   setError: (e: string | null) => void;
   select: (path: string) => void;
@@ -35,6 +38,9 @@ export const useApp = create<AppState>((set, get) => ({
   error: null,
   ops: {},
   finished: {},
+  help: { open: false, topic: "comecar" },
+  openHelp: (topic) => set((s) => ({ help: { open: true, topic: topic ?? s.help.topic } })),
+  closeHelp: () => set((s) => ({ help: { ...s.help, open: false } })),
   setDevices: (devices) => {
     // Resposta igual à anterior: não troca o estado (evita redesenhar a cada 2 s).
     const snapshot = JSON.stringify(devices);
