@@ -13,6 +13,7 @@ pub fn run() {
             devices::history_events,
             ops::start_operation,
             ops::cancel_operation,
+            ops::save_report,
         ])
         .run(tauri::generate_context!())
         .expect("falha ao iniciar a interface");

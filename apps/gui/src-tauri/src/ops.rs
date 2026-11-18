@@ -155,3 +155,20 @@ pub fn cancel_operation(ops: State<'_, Ops>, device: String) -> Result<(), Strin
         None => Err("nenhuma operação em andamento neste disco".into()),
     }
 }
+
+/// Gera o laudo HTML pela CLI, como usuário (o histórico é do usuário).
+#[tauri::command]
+pub fn save_report(key: String, path: String) -> Result<(), String> {
+    let out = Command::new(cli_path())
+        .args(["report", &key, "-o", &path])
+        .output()
+        .map_err(|e| e.to_string())?;
+    if out.status.success() {
+        Ok(())
+    } else {
+        Err(String::from_utf8_lossy(&out.stderr)
+            .trim()
+            .trim_start_matches("erro: ")
+            .to_string())
+    }
+}

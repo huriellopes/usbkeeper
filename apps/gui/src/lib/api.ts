@@ -17,3 +17,4 @@ export const startOperation = (request: OpRequest, token: string) =>
 export const cancelOperation = (device: string) => invoke<void>("cancel_operation", { device });
 export const onOpProgress = (cb: (e: OpEvent) => void) => listen<OpEvent>("op-progress", (e) => cb(e.payload));
 export const onOpFinished = (cb: (e: OpFinished) => void) => listen<OpFinished>("op-finished", (e) => cb(e.payload));
+export const saveReport = (key: string, path: string) => invoke<void>("save_report", { key, path });
