@@ -18,12 +18,24 @@ cleanup() {
   umount "$WORK/mnt" 2>/dev/null || true
   umount "$WORK/fake" 2>/dev/null || true
   for l in "${FAKE_TOPS[@]}"; do losetup -d "$l" 2>/dev/null || true; done
-  for d in "${FAKE_DMS[@]}"; do dmsetup remove "$d" 2>/dev/null || true; done
+  # losetup -d é assíncrono: espera o loop de topo soltar o dm antes de removê-lo.
+  udevadm settle 2>/dev/null || true
+  for d in "${FAKE_DMS[@]}"; do dmsetup remove --retry "$d" 2>/dev/null || echo "aviso: não removi $d"; done
   for l in "${FAKE_BACKS[@]}"; do losetup -d "$l" 2>/dev/null || true; done
   losetup -d "$LOOP" 2>/dev/null || true
   rm -rf "$WORK"
 }
 trap cleanup EXIT
+# Sobras de uma rodada interrompida: holders (loop de topo) → dm → loops de baixo.
+for link in /dev/mapper/usbkeeper-e2e-*; do
+  [[ -e $link ]] || continue
+  dm=$(basename "$(readlink -f "$link")")
+  for h in /sys/block/"$dm"/holders/*; do [[ -e $h ]] && losetup -d "/dev/${h##*/}" 2>/dev/null; done
+  slaves=$(ls "/sys/block/$dm/slaves")
+  udevadm settle 2>/dev/null || true
+  dmsetup remove --retry "${link##*/}" && echo "limpei sobra: ${link##*/}"
+  for sl in $slaves; do losetup -d "/dev/$sl" 2>/dev/null || true; done
+done
 echo "loop de teste: $LOOP ($IMG)"
 
 pass=0 fail=0
