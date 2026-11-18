@@ -81,6 +81,7 @@ pub enum Phase {
     RandRead,
     SeqWrite,
     RandWrite,
+    Scan,
 }
 
 impl Phase {
@@ -96,6 +97,7 @@ impl Phase {
             Phase::RandRead => "leitura aleatória 4K",
             Phase::SeqWrite => "escrita sequencial",
             Phase::RandWrite => "escrita aleatória 4K",
+            Phase::Scan => "lendo a superfície",
         }
     }
 }
@@ -105,7 +107,7 @@ impl Phase {
     pub fn counts_bytes(self) -> bool {
         matches!(
             self,
-            Phase::Write | Phase::Verify | Phase::SeqRead | Phase::SeqWrite
+            Phase::Write | Phase::Verify | Phase::SeqRead | Phase::SeqWrite | Phase::Scan
         )
     }
 }

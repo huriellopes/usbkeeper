@@ -16,14 +16,14 @@ use crate::backend::Backend;
 use crate::destructive::{Guard, confirm_and_take, precheck};
 
 /// Barra de progresso em uma linha (stderr), atualizada no máximo 5x/s.
-struct Bar {
+pub struct Bar {
     phase: Option<Phase>,
     phase_started: Instant,
     last_draw: Instant,
 }
 
 impl Bar {
-    fn new() -> Self {
+    pub fn new() -> Self {
         let now = Instant::now();
         Self {
             phase: None,
@@ -32,14 +32,14 @@ impl Bar {
         }
     }
 
-    fn finish(&mut self) {
+    pub fn finish(&mut self) {
         if self.phase.take().is_some() {
             eprintln!();
         }
     }
 }
 
-fn duration(secs: f64) -> String {
+pub fn duration(secs: f64) -> String {
     let secs = secs.max(0.0) as u64;
     match secs {
         s if s >= 3600 => format!("{}h{:02}min", s / 3600, (s % 3600) / 60),
@@ -83,7 +83,7 @@ impl Progress for Bar {
 
 /// Ctrl+C liga a flag; os algoritmos param no próximo bloco e o teste
 /// rápido ainda restaura os blocos originais.
-fn cancel_flag() -> Arc<AtomicBool> {
+pub fn cancel_flag() -> Arc<AtomicBool> {
     let flag = Arc::new(AtomicBool::new(false));
     let handler_flag = flag.clone();
     let _ = ctrlc::set_handler(move || {
@@ -96,7 +96,7 @@ fn cancel_flag() -> Arc<AtomicBool> {
     flag
 }
 
-fn open_checked(
+pub fn open_checked(
     b: &Backend,
     device: &Device,
     write: bool,
@@ -178,6 +178,30 @@ pub fn fake_check(b: &Backend, args: FakeCheckArgs) -> Result<()> {
         }
         Err(e) => return Err(e.into()),
     };
+
+    let summary = match report.verdict {
+        Verdict::Fake => format!(
+            "FALSO: {} reais de {} anunciados ({})",
+            human_bytes(report.real_bytes),
+            human_bytes(report.advertised_bytes),
+            if args.full { "completo" } else { "rápido" }
+        ),
+        Verdict::Damaged => format!(
+            "com defeito: 1º setor ruim em {}",
+            human_bytes(report.first_bad_offset.unwrap_or(0))
+        ),
+        Verdict::Genuine => format!(
+            "genuíno ({})",
+            if args.full { "completo" } else { "rápido" }
+        ),
+    };
+    crate::store::record(
+        &current,
+        usbkeeper_history::kind::FAKE_CHECK,
+        Some(&crate::store::verdict_name(&report.verdict)),
+        &summary,
+        serde_json::json!(report),
+    );
 
     if args.json {
         let out = serde_json::json!({ "device": current, "report": report });
@@ -310,6 +334,21 @@ pub fn bench(b: &Backend, args: BenchArgs) -> Result<()> {
         Err(CoreError::Cancelled) => bail!("cancelado"),
         other => other?,
     };
+
+    let mut summary = format!(
+        "leitura {:.1} MB/s, 4K {:.0} IOPS",
+        result.seq_read_mbps, result.rand_read_iops
+    );
+    if let (Some(w), Some(rw)) = (result.seq_write_mbps, result.rand_write_iops) {
+        summary.push_str(&format!("; escrita {w:.1} MB/s, 4K {rw:.0} IOPS"));
+    }
+    crate::store::record(
+        &current,
+        usbkeeper_history::kind::BENCH,
+        None,
+        &summary,
+        serde_json::json!(result),
+    );
 
     if args.json {
         let out = serde_json::json!({ "device": current, "bench": result });

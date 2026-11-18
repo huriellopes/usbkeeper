@@ -7,6 +7,8 @@ license.workspace = true
 
 [dependencies]
 usbkeeper-core.workspace = true
+usbkeeper-history.workspace = true
+usbkeeper-smart.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 clap.workspace = true

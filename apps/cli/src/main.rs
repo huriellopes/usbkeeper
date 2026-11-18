@@ -1,6 +1,9 @@
 mod backend;
 mod checks;
 mod destructive;
+mod health;
+mod report;
+mod store;
 mod view;
 
 use anyhow::Result;
@@ -19,6 +22,9 @@ use crate::destructive::{FormatArgs, Guard};
     about = "Gerencia pendrives e HDs externos"
 )]
 struct Cli {
+    /// Não grava este comando no histórico
+    #[arg(long, global = true)]
+    no_history: bool,
     #[command(subcommand)]
     command: Command,
 }
@@ -103,6 +109,31 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
+    /// Saúde: SMART (HD/SSD) e, com --scan, leitura de toda a superfície
+    Health {
+        device: String,
+        /// Lê o disco inteiro procurando blocos ilegíveis (não grava nada)
+        #[arg(long)]
+        scan: bool,
+        /// Saída em JSON (sem barra de progresso)
+        #[arg(long)]
+        json: bool,
+    },
+    /// Histórico de testes: todos os dispositivos, ou um (nome, chave ou série)
+    History {
+        #[arg(allow_hyphen_values = true)]
+        device: Option<String>,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Gera laudo HTML do dispositivo a partir do histórico
+    Report {
+        #[arg(allow_hyphen_values = true)]
+        device: String,
+        /// Arquivo de saída (padrão: usbkeeper-<chave>.html)
+        #[arg(long, short = 'o')]
+        output: Option<std::path::PathBuf>,
+    },
     /// Desmonta e desliga o dispositivo para remoção segura
     Eject {
         device: String,
@@ -156,6 +187,9 @@ fn main() {
 }
 
 fn run(cli: Cli) -> Result<()> {
+    if cli.no_history {
+        store::disable();
+    }
     match cli.command {
         Command::List { all, json } => {
             let devices = backend(all).enumerator.list()?;
@@ -245,6 +279,11 @@ fn run(cli: Cli) -> Result<()> {
                 json,
             },
         )?,
+        Command::Health { device, scan, json } => {
+            health::health(&backend(true), health::HealthArgs { device, scan, json })?
+        }
+        Command::History { device, json } => report::history(&backend(true), device, json)?,
+        Command::Report { device, output } => report::report(&backend(true), device, output)?,
         Command::Eject {
             device,
             no_power_off,
@@ -252,4 +291,24 @@ fn run(cli: Cli) -> Result<()> {
         } => destructive::eject(&backend(true), &device, allow_non_usb, !no_power_off)?,
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn history_and_report_accept_keys_starting_with_hyphen() {
+        // Chaves gravadas antes desta correção começavam com "-:-:".
+        let cli = Cli::try_parse_from(["usbkeeper", "history", "-:-:WD-1"]).unwrap();
+        assert!(matches!(cli.command, Command::History { device: Some(d), .. } if d == "-:-:WD-1"));
+        let cli = Cli::try_parse_from(["usbkeeper", "report", "-:-:x", "-o", "a.html"]).unwrap();
+        assert!(matches!(cli.command, Command::Report { device, .. } if device == "-:-:x"));
+    }
+
+    #[test]
+    fn cli_definition_is_valid() {
+        use clap::CommandFactory;
+        Cli::command().debug_assert();
+    }
 }
