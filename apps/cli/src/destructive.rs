@@ -1,0 +1,248 @@
+//! Fluxos que alteram discos: `format` e `eject`.
+//!
+//! Ordem do `format`: avaliar → planejar (ferramentas presentes?) → mostrar
+//! → confirmar pela série → desmontar → reler e reconferir identidade e
+//! regras → executar passo a passo.
+
+use std::io::{BufRead, IsTerminal, Write};
+
+use anyhow::{Context, Result, bail};
+use usbkeeper_core::format::{Filesystem, FormatRequest, PartitionTable, normalize_label};
+use usbkeeper_core::safety::{self, Policy, Refusal};
+use usbkeeper_core::units::human_bytes;
+use usbkeeper_core::{CoreError, Device};
+
+use crate::backend::Backend;
+use crate::view::print_holders;
+
+pub struct FormatArgs {
+    pub device: String,
+    pub filesystem: Filesystem,
+    pub table: Option<PartitionTable>,
+    pub label: Option<String>,
+    pub unmount: bool,
+    pub allow_non_usb: bool,
+    pub yes_i_know: Option<String>,
+    pub dry_run: bool,
+}
+
+fn refuse(device: &Device, refusals: &[Refusal]) -> anyhow::Error {
+    let reasons: Vec<String> = refusals
+        .iter()
+        .map(|r| format!("  - {}", r.message()))
+        .collect();
+    anyhow::anyhow!(
+        "{} não pode ser formatado:\n{}",
+        device.path,
+        reasons.join("\n")
+    )
+}
+
+/// Falha cedo se não houver permissão de escrita no dispositivo, em vez de
+/// descobrir isso no meio do plano.
+#[cfg(unix)]
+fn ensure_writable(device: &Device) -> Result<()> {
+    match std::fs::OpenOptions::new().write(true).open(&device.path) {
+        Ok(_) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => bail!(
+            "sem permissão para gravar em {}. Rode com sudo:\n  sudo {} {}",
+            device.path,
+            std::env::current_exe()
+                .map(|p| p.display().to_string())
+                .unwrap_or_else(|_| "usbkeeper".into()),
+            std::env::args().skip(1).collect::<Vec<_>>().join(" ")
+        ),
+        Err(e) => Err(e).with_context(|| format!("abrindo {}", device.path)),
+    }
+}
+
+#[cfg(not(unix))]
+fn ensure_writable(_device: &Device) -> Result<()> {
+    Ok(())
+}
+
+fn confirm(device: &Device, given: Option<&str>) -> Result<()> {
+    let token = safety::confirmation_token(device);
+    let typed = match given {
+        Some(t) => t.to_string(),
+        None => {
+            if !std::io::stdin().is_terminal() {
+                bail!("sem terminal para confirmar; use --yes-i-know {token}");
+            }
+            print!("\nPara confirmar, digite {token}: ");
+            std::io::stdout().flush()?;
+            let mut line = String::new();
+            std::io::stdin().lock().read_line(&mut line)?;
+            line
+        }
+    };
+    if safety::confirm(device, &typed) {
+        Ok(())
+    } else {
+        bail!("confirmação não confere; nada foi alterado")
+    }
+}
+
+fn print_plan(device: &Device, request: &FormatRequest) {
+    println!("Alvo:     {}  {}", device.path, device.display_name());
+    println!(
+        "Tamanho:  {}   Série: {}",
+        human_bytes(device.size_bytes),
+        device.serial.as_deref().unwrap_or("-")
+    );
+    if !device.partitions.is_empty() {
+        println!("SERÁ APAGADO:");
+        for p in &device.partitions {
+            println!(
+                "  {} {} {} {}",
+                p.path,
+                human_bytes(p.size_bytes),
+                p.fstype.as_deref().unwrap_or("-"),
+                p.label.as_deref().unwrap_or("")
+            );
+        }
+    }
+    println!(
+        "Novo:     {} em tabela {}{} — {}",
+        request.filesystem,
+        request.table,
+        request
+            .label
+            .as_deref()
+            .map(|l| format!(", rótulo \"{l}\""))
+            .unwrap_or_default(),
+        request.filesystem.hint()
+    );
+}
+
+pub fn format(b: &Backend, args: FormatArgs) -> Result<()> {
+    let device = b.enumerator.get(&args.device)?;
+    let policy = Policy {
+        allow_non_usb: args.allow_non_usb,
+    };
+
+    let label = normalize_label(args.filesystem, args.label.as_deref().unwrap_or(""))
+        .map_err(anyhow::Error::msg)?;
+    let request = FormatRequest {
+        filesystem: args.filesystem,
+        table: args
+            .table
+            .unwrap_or_else(|| PartitionTable::default_for(device.size_bytes)),
+        label,
+    };
+
+    let refusals: Vec<Refusal> = safety::check_target(&device, policy)
+        .into_iter()
+        .filter(|r| !(args.unmount && matches!(r, Refusal::Mounted { .. })))
+        .collect();
+    if !refusals.is_empty() {
+        let mut msg = refuse(&device, &refusals).to_string();
+        if refusals
+            .iter()
+            .any(|r| matches!(r, Refusal::Mounted { .. }))
+        {
+            msg.push_str("\n(use --unmount para desmontar automaticamente)");
+        }
+        bail!(msg);
+    }
+
+    let steps = b.formatter.plan(&device, &request)?;
+    print_plan(&device, &request);
+
+    if args.dry_run {
+        println!("\nComandos que seriam executados:");
+        for s in &steps {
+            println!("  {}", s.command_line());
+        }
+        println!("\nSimulação (--dry-run): nada foi alterado.");
+        return Ok(());
+    }
+
+    ensure_writable(&device)?;
+    confirm(&device, args.yes_i_know.as_deref())?;
+    let identity = device.identity();
+
+    if device.is_mounted() {
+        println!("Desmontando...");
+        if let Err(e) = b.mounts.unmount_all(&device) {
+            return Err(busy_error(e));
+        }
+    }
+
+    // O pendrive pode ter sido trocado enquanto o usuário digitava.
+    let current = b.enumerator.get(&device.path)?;
+    if let Err(m) = safety::verify_same(&identity, &current) {
+        bail!(
+            "o dispositivo em {} mudou desde a confirmação (esperado série {:?} e {} bytes, encontrado {:?} e {} bytes); nada foi alterado",
+            device.path,
+            m.expected.serial,
+            m.expected.size_bytes,
+            m.found.serial,
+            m.found.size_bytes
+        );
+    }
+    let refusals = safety::check_target(&current, policy);
+    if !refusals.is_empty() {
+        return Err(refuse(&current, &refusals));
+    }
+
+    let steps = b.formatter.plan(&current, &request)?;
+    let total = steps.len();
+    for (i, step) in steps.iter().enumerate() {
+        println!("[{}/{total}] {}", i + 1, step.description);
+        b.formatter
+            .execute(std::slice::from_ref(step))
+            .with_context(|| format!("falhou no passo {}/{total}; o disco pode estar sem partições, rode o format de novo", i + 1))?;
+    }
+    println!(
+        "\n✔ {} formatado em {}{}.",
+        device.path,
+        request.filesystem,
+        request
+            .label
+            .as_deref()
+            .map(|l| format!(" (\"{l}\")"))
+            .unwrap_or_default()
+    );
+    Ok(())
+}
+
+fn busy_error(e: CoreError) -> anyhow::Error {
+    if let CoreError::Busy {
+        mountpoint,
+        holders,
+    } = &e
+        && !holders.is_empty()
+    {
+        println!("{mountpoint} está em uso por:");
+        print_holders(holders);
+        return anyhow::anyhow!("feche esses programas e tente de novo");
+    }
+    e.into()
+}
+
+pub fn eject(b: &Backend, device: &str, allow_non_usb: bool, power_off: bool) -> Result<()> {
+    let device = b.enumerator.get(device)?;
+    let refusals = safety::check_target(&device, Policy { allow_non_usb });
+    if let Some(r) = refusals
+        .iter()
+        .find(|r| r.is_absolute() || matches!(r, Refusal::NotUsb { .. }))
+    {
+        bail!("não vou ejetar {}: {}", device.path, r.message());
+    }
+
+    if device.is_mounted() {
+        println!(
+            "Desmontando {}...",
+            device.all_mountpoints().collect::<Vec<_>>().join(", ")
+        );
+        b.mounts.unmount_all(&device).map_err(busy_error)?;
+    }
+    if power_off {
+        b.ejector.power_off(&device)?;
+        println!("✔ {} desligado. Pode remover com segurança.", device.path);
+    } else {
+        println!("✔ {} desmontado.", device.path);
+    }
+    Ok(())
+}

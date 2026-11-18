@@ -2,6 +2,7 @@
 //! contratos que cada backend de plataforma implementa.
 
 pub mod error;
+pub mod format;
 pub mod model;
 pub mod platform;
 pub mod safety;
@@ -9,4 +10,4 @@ pub mod units;
 
 pub use error::CoreError;
 pub use model::{Device, DeviceIdentity, Partition, Transport, UsbInfo, UsbSpeed};
-pub use platform::Enumerator;
+pub use platform::{Ejector, Enumerator, Formatter, Holder, Mounts, Step};
