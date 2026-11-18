@@ -71,6 +71,7 @@ pub trait Formatter {
 
 /// Processo que mantém um ponto de montagem ocupado.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 pub struct Holder {
     pub pid: u32,
     pub command: String,

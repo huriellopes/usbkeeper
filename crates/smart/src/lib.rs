@@ -11,6 +11,7 @@ use serde::Serialize;
 use serde_json::Value;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 #[serde(rename_all = "snake_case")]
 pub enum HealthVerdict {
     Good,
@@ -23,18 +24,21 @@ pub enum HealthVerdict {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 pub struct Attribute {
     pub id: u32,
     pub name: String,
     pub value: u32,
     pub worst: u32,
     pub threshold: u32,
+    #[cfg_attr(feature = "ts", ts(type = "number"))]
     pub raw: u64,
     /// "now" ou "past" quando o atributo cruzou o limite.
     pub failed: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 pub struct HealthReport {
     pub verdict: HealthVerdict,
     /// Tipo usado pelo smartctl (`-d`), ex.: "sat", "nvme", "usbjmicron".
@@ -43,16 +47,26 @@ pub struct HealthReport {
     pub model: Option<String>,
     pub serial: Option<String>,
     pub passed: Option<bool>,
+    #[cfg_attr(feature = "ts", ts(type = "number | null"))]
     pub temperature_c: Option<i64>,
+    #[cfg_attr(feature = "ts", ts(type = "number | null"))]
     pub power_on_hours: Option<u64>,
+    #[cfg_attr(feature = "ts", ts(type = "number | null"))]
     pub power_cycles: Option<u64>,
+    #[cfg_attr(feature = "ts", ts(type = "number | null"))]
     pub reallocated_sectors: Option<u64>,
+    #[cfg_attr(feature = "ts", ts(type = "number | null"))]
     pub pending_sectors: Option<u64>,
+    #[cfg_attr(feature = "ts", ts(type = "number | null"))]
     pub uncorrectable_sectors: Option<u64>,
+    #[cfg_attr(feature = "ts", ts(type = "number | null"))]
     pub crc_errors: Option<u64>,
     /// NVMe: % da vida útil estimada já consumida.
+    #[cfg_attr(feature = "ts", ts(type = "number | null"))]
     pub percentage_used: Option<u64>,
+    #[cfg_attr(feature = "ts", ts(type = "number | null"))]
     pub media_errors: Option<u64>,
+    #[cfg_attr(feature = "ts", ts(type = "number | null"))]
     pub critical_warning: Option<u64>,
     pub attributes: Vec<Attribute>,
     /// Motivos do veredito (ou de não haver SMART), em português.

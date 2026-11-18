@@ -1,0 +1,30 @@
+[package]
+name = "usbkeeper-gui"
+description = "Interface gráfica do usbkeeper"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "usbkeeper_gui_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "usbkeeper-gui"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build.workspace = true
+
+[dependencies]
+tauri.workspace = true
+tauri-plugin-dialog.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+ts-rs.workspace = true
+usbkeeper-core = { workspace = true, features = ["ts"] }
+usbkeeper-history = { workspace = true, features = ["ts"] }
+usbkeeper-smart = { workspace = true, features = ["ts"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+usbkeeper-linux.workspace = true

@@ -26,6 +26,7 @@ const MIN_PROBES: u64 = 128;
 const PRECISION: u64 = 1 << 20;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 #[serde(rename_all = "snake_case")]
 pub enum CheckMode {
     Quick,
@@ -33,6 +34,7 @@ pub enum CheckMode {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 #[serde(rename_all = "snake_case")]
 pub enum Verdict {
     /// Toda a capacidade anunciada guarda dados corretamente.
@@ -44,20 +46,28 @@ pub enum Verdict {
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 pub struct FakeReport {
     pub mode: CheckMode,
     pub verdict: Verdict,
+    #[cfg_attr(feature = "ts", ts(type = "number"))]
     pub advertised_bytes: u64,
     /// Capacidade que realmente guarda dados (estimativa no modo rápido).
+    #[cfg_attr(feature = "ts", ts(type = "number"))]
     pub real_bytes: u64,
     /// Ciclo após o qual os endereços "dão a volta", se detectado.
+    #[cfg_attr(feature = "ts", ts(type = "number | null"))]
     pub wrap_module_bytes: Option<u64>,
     /// Primeiro endereço que devolveu lixo/zeros.
+    #[cfg_attr(feature = "ts", ts(type = "number | null"))]
     pub first_bad_offset: Option<u64>,
     /// No completo: bytes íntegros / com lixo / sobrescritos por outro
     /// endereço. No rápido: o mesmo, mas só dos blocos amostrados.
+    #[cfg_attr(feature = "ts", ts(type = "number"))]
     pub ok_bytes: u64,
+    #[cfg_attr(feature = "ts", ts(type = "number"))]
     pub bad_bytes: u64,
+    #[cfg_attr(feature = "ts", ts(type = "number"))]
     pub aliased_bytes: u64,
     pub probes: Option<u32>,
     pub restored_blocks: Option<u32>,
@@ -66,6 +76,7 @@ pub struct FakeReport {
     pub seconds: f64,
     /// Para falsos: valor para `format --max-size` (capacidade real com 2%
     /// de margem, alinhada em 1 MiB).
+    #[cfg_attr(feature = "ts", ts(type = "number | null"))]
     pub suggested_max_bytes: Option<u64>,
 }
 

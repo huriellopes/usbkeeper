@@ -1,0 +1,5 @@
+[build]
+jobs = 4
+
+[env]
+TS_RS_EXPORT_DIR = { value = "apps/gui/src/lib/bindings", relative = true }

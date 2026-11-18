@@ -45,21 +45,27 @@ impl DeviceInfo {
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 pub struct DeviceRecord {
     pub key: String,
     pub serial: Option<String>,
     pub vendor_id: Option<String>,
     pub product_id: Option<String>,
     pub model: Option<String>,
+    #[cfg_attr(feature = "ts", ts(type = "number"))]
     pub advertised_bytes: u64,
+    #[cfg_attr(feature = "ts", ts(type = "number"))]
     pub first_seen: i64,
+    #[cfg_attr(feature = "ts", ts(type = "number"))]
     pub last_seen: i64,
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 pub struct DeviceSummary {
     #[serde(flatten)]
     pub device: DeviceRecord,
+    #[cfg_attr(feature = "ts", ts(type = "number"))]
     pub events: u64,
     /// Último veredito de fake-check, se houver.
     pub last_fake_verdict: Option<String>,
@@ -68,8 +74,11 @@ pub struct DeviceSummary {
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 pub struct Event {
+    #[cfg_attr(feature = "ts", ts(type = "number"))]
     pub id: i64,
+    #[cfg_attr(feature = "ts", ts(type = "number"))]
     pub at: i64,
     pub kind: String,
     pub verdict: Option<String>,
@@ -239,6 +248,25 @@ impl History {
     }
 }
 
+/// Caminho padrão do banco. `home` substitui o diretório do usuário (a CLI
+/// passa a home de quem chamou o sudo/pkexec); `None` usa o ambiente.
+pub fn default_db_path(home: Option<&Path>) -> Option<std::path::PathBuf> {
+    use std::path::PathBuf;
+    let dir = if let Some(home) = home {
+        home.join(".local/share/usbkeeper")
+    } else if cfg!(windows) {
+        PathBuf::from(std::env::var_os("LOCALAPPDATA")?).join("usbkeeper")
+    } else if cfg!(target_os = "macos") {
+        PathBuf::from(std::env::var_os("HOME")?).join("Library/Application Support/usbkeeper")
+    } else {
+        std::env::var_os("XDG_DATA_HOME")
+            .map(PathBuf::from)
+            .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/share")))?
+            .join("usbkeeper")
+    };
+    Some(dir.join("history.db"))
+}
+
 pub fn now() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -370,6 +398,18 @@ mod tests {
         // No Windows um arquivo aberto não pode ser apagado: fecha antes do
         // TempDir limpar o diretório.
         drop(h);
+    }
+
+    #[test]
+    fn default_path_uses_given_home() {
+        let p = default_db_path(Some(std::path::Path::new("/home/ana"))).unwrap();
+        if cfg!(target_os = "linux") {
+            assert_eq!(
+                p,
+                std::path::PathBuf::from("/home/ana/.local/share/usbkeeper/history.db")
+            );
+        }
+        assert!(p.ends_with("history.db"));
     }
 
     #[test]

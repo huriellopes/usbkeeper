@@ -18,12 +18,18 @@ const MAX_LISTED: usize = 256;
 pub const SLOW_CHUNK: Duration = Duration::from_millis(500);
 
 #[derive(Debug, Clone, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 pub struct ScanReport {
+    #[cfg_attr(feature = "ts", ts(type = "number"))]
     pub scanned_bytes: u64,
     /// Blocos de 4 KiB que falharam na leitura (no máximo os primeiros 256).
+    #[cfg_attr(feature = "ts", ts(type = "Array<number>"))]
     pub unreadable_offsets: Vec<u64>,
+    #[cfg_attr(feature = "ts", ts(type = "number"))]
     pub unreadable_blocks: u64,
+    #[cfg_attr(feature = "ts", ts(type = "number"))]
     pub slow_chunks: u64,
+    #[cfg_attr(feature = "ts", ts(type = "number"))]
     pub slowest_chunk_ms: u64,
     pub read_mbps: f64,
     pub seconds: f64,

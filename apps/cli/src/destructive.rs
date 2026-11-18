@@ -15,7 +15,6 @@ use usbkeeper_core::units::human_bytes;
 use usbkeeper_core::{CoreError, Device};
 
 use crate::backend::Backend;
-use crate::view::print_holders;
 
 /// Opções de segurança comuns a toda operação que grava no disco.
 pub struct Guard {
@@ -40,6 +39,7 @@ pub struct FormatArgs {
     pub max_bytes: Option<u64>,
     pub guard: Guard,
     pub dry_run: bool,
+    pub json: bool,
 }
 
 /// Recusa cedo (antes de mostrar plano ou pedir confirmação). Disco montado
@@ -204,7 +204,9 @@ pub fn format(b: &Backend, args: FormatArgs) -> Result<()> {
     precheck(&device, &args.guard)?;
 
     let steps = b.formatter.plan(&device, &request)?;
-    print_plan(&device, &request);
+    if !args.json {
+        print_plan(&device, &request);
+    }
 
     if args.dry_run {
         println!("\nComandos que seriam executados:");
@@ -220,21 +222,38 @@ pub fn format(b: &Backend, args: FormatArgs) -> Result<()> {
     let steps = b.formatter.plan(&current, &request)?;
     let total = steps.len();
     for (i, step) in steps.iter().enumerate() {
-        println!("[{}/{total}] {}", i + 1, step.description);
+        if crate::machine::get().progress_json {
+            eprintln!(
+                "{}",
+                crate::machine::step_line(&step.description, i as u64 + 1, total as u64)
+            );
+        } else if !args.json {
+            println!("[{}/{total}] {}", i + 1, step.description);
+        }
         b.formatter
             .execute(std::slice::from_ref(step))
             .with_context(|| format!("falhou no passo {}/{total}; o disco pode estar sem partições, rode o format de novo", i + 1))?;
     }
-    println!(
-        "\n✔ {} formatado em {}{}.",
-        device.path,
-        request.filesystem,
-        request
-            .label
-            .as_deref()
-            .map(|l| format!(" (\"{l}\")"))
-            .unwrap_or_default()
-    );
+    if args.json {
+        crate::print_json(&serde_json::json!({
+            "device": device.path,
+            "filesystem": request.filesystem,
+            "table": request.table,
+            "label": request.label,
+            "max_bytes": request.max_bytes,
+        }))?;
+    } else {
+        println!(
+            "\n✔ {} formatado em {}{}.",
+            device.path,
+            request.filesystem,
+            request
+                .label
+                .as_deref()
+                .map(|l| format!(" (\"{l}\")"))
+                .unwrap_or_default()
+        );
+    }
     Ok(())
 }
 
@@ -245,14 +264,27 @@ fn busy_error(e: CoreError) -> anyhow::Error {
     } = &e
         && !holders.is_empty()
     {
-        println!("{mountpoint} está em uso por:");
-        print_holders(holders);
-        return anyhow::anyhow!("feche esses programas e tente de novo");
+        // Os processos vão na própria mensagem: no modo --json o stdout é
+        // só do resultado, e a interface gráfica mostra o texto do erro.
+        let list = holders
+            .iter()
+            .map(|h| format!("  PID {} {} ({})", h.pid, h.command, h.path))
+            .collect::<Vec<_>>()
+            .join("\n");
+        return anyhow::anyhow!(
+            "{mountpoint} está em uso por:\n{list}\nfeche esses programas e tente de novo"
+        );
     }
     e.into()
 }
 
-pub fn eject(b: &Backend, device: &str, allow_non_usb: bool, power_off: bool) -> Result<()> {
+pub fn eject(
+    b: &Backend,
+    device: &str,
+    allow_non_usb: bool,
+    power_off: bool,
+    json: bool,
+) -> Result<()> {
     let device = b.enumerator.get(device)?;
     let refusals = safety::check_target(&device, Policy { allow_non_usb });
     if let Some(r) = refusals
@@ -263,7 +295,7 @@ pub fn eject(b: &Backend, device: &str, allow_non_usb: bool, power_off: bool) ->
     }
 
     if device.is_mounted() {
-        println!(
+        eprintln!(
             "Desmontando {}...",
             device.all_mountpoints().collect::<Vec<_>>().join(", ")
         );
@@ -271,6 +303,13 @@ pub fn eject(b: &Backend, device: &str, allow_non_usb: bool, power_off: bool) ->
     }
     if power_off {
         b.ejector.power_off(&device)?;
+    }
+    if json {
+        crate::print_json(&serde_json::json!({
+            "device": device.path,
+            "powered_off": power_off,
+        }))?;
+    } else if power_off {
         println!("✔ {} desligado. Pode remover com segurança.", device.path);
     } else {
         println!("✔ {} desmontado.", device.path);
