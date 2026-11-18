@@ -18,6 +18,8 @@ pub fn disable() {
 }
 
 /// Quem chamou de verdade quando o comando roda como root.
+/// (`uid`/`gid` só servem para o chown, que só existe em Unix.)
+#[cfg_attr(not(unix), allow(dead_code))]
 pub struct Invoker {
     pub home: PathBuf,
     pub uid: u32,
