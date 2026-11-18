@@ -5,6 +5,7 @@ import { useApp } from "./lib/store";
 import { Sidebar } from "./features/sidebar/Sidebar";
 import { DevicePanel } from "./features/device/DevicePanel";
 import { HelpPanel } from "./features/help/HelpPanel";
+import { Notice } from "./features/remove/Notice";
 
 const POLL_MS = 2000;
 
@@ -65,8 +66,11 @@ export default function App() {
           </button>
         </div>
       </aside>
-      <main className="overflow-hidden" style={{ background: "var(--panel)" }}>
-        {help.open ? <HelpPanel topics={topics} /> : current ? <DevicePanel key={current.device.path} view={current} /> : null}
+      <main className="flex flex-col overflow-hidden" style={{ background: "var(--panel)" }}>
+        <Notice />
+        <div className="min-h-0 flex-1">
+          {help.open ? <HelpPanel topics={topics} /> : current ? <DevicePanel key={current.device.path} view={current} /> : null}
+        </div>
       </main>
     </div>
   );

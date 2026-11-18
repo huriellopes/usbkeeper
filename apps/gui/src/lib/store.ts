@@ -19,6 +19,9 @@ type AppState = {
   ops: Record<string, RunningOp>; // device → operação em andamento
   finished: Record<string, Record<string, OpFinished>>; // device → kind → último resultado
   help: { open: boolean; topic: string };
+  /** Aviso no topo da janela (ex.: "pode tirar"); sobrevive ao disco sumir da lista. */
+  notice: { text: string; tone: "ok" | "warn" } | null;
+  dismissNotice: () => void;
   openHelp: (topic?: string) => void;
   closeHelp: () => void;
   setDevices: (d: DeviceView[]) => void;
@@ -32,6 +35,17 @@ type AppState = {
 
 let lastSnapshot = "";
 
+/** Texto do aviso depois de remover: o nome vem da lista atual (o disco
+ *  some dela logo em seguida). */
+function ejectNotice(devices: DeviceView[], f: OpFinished): AppState["notice"] {
+  const d = devices.find((v) => v.device.path === f.device)?.device;
+  const name = d ? `${d.model ?? d.name} (${d.name})` : f.device;
+  const r = (f.result ?? {}) as { powered_off?: boolean };
+  return r.powered_off
+    ? { text: `✔ Pode tirar o ${name}.`, tone: "ok" }
+    : { text: `✔ ${name} desmontado. Pode tirar quando o LED parar de piscar.`, tone: "warn" };
+}
+
 export const useApp = create<AppState>((set, get) => ({
   devices: [],
   selected: null,
@@ -39,6 +53,8 @@ export const useApp = create<AppState>((set, get) => ({
   ops: {},
   finished: {},
   help: { open: false, topic: "comecar" },
+  notice: null,
+  dismissNotice: () => set({ notice: null }),
   openHelp: (topic) => set((s) => ({ help: { open: true, topic: topic ?? s.help.topic } })),
   closeHelp: () => set((s) => ({ help: { ...s.help, open: false } })),
   setDevices: (devices) => {
@@ -72,6 +88,11 @@ export const useApp = create<AppState>((set, get) => ({
   opFinished: (f) =>
     set((s) => {
       const { [f.device]: _done, ...ops } = s.ops;
-      return { ops, finished: { ...s.finished, [f.device]: { ...(s.finished[f.device] ?? {}), [f.kind]: f } } };
+      const notice = f.kind === "eject" && f.ok ? ejectNotice(s.devices, f) : s.notice;
+      return {
+        ops,
+        notice,
+        finished: { ...s.finished, [f.device]: { ...(s.finished[f.device] ?? {}), [f.kind]: f } },
+      };
     }),
 }));
