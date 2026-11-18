@@ -1,3 +1,4 @@
+#![cfg(target_os = "linux")]
 //! Backend Linux: `lsblk` para a topologia e sysfs para os dados USB.
 
 pub mod format;

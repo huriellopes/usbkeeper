@@ -2,7 +2,7 @@
 
 use usbkeeper_core::safety::{self, Policy};
 use usbkeeper_core::units::human_bytes;
-use usbkeeper_core::{Device, Holder, Transport};
+use usbkeeper_core::{Device, Holder};
 
 pub fn status(dev: &Device) -> &'static str {
     let refusals = safety::check_target(dev, Policy::default());
@@ -170,7 +170,9 @@ pub fn print_holders(holders: &[Holder]) {
 #[cfg(target_os = "linux")]
 pub fn wsl_hint(devices: &[Device]) {
     if usbkeeper_linux::wsl::running_in_wsl()
-        && !devices.iter().any(|d| d.transport == Transport::Usb)
+        && !devices
+            .iter()
+            .any(|d| d.transport == usbkeeper_core::Transport::Usb)
     {
         println!("\n{}", usbkeeper_linux::wsl::USBIPD_HINT);
     }
