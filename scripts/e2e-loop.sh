@@ -9,11 +9,16 @@ BIN=${BIN:-$(dirname "$0")/../target/debug/usbkeeper}
 WORK=$(mktemp -d)
 IMG=$WORK/pen.img
 truncate -s 600M "$IMG"
+command -v jq >/dev/null && command -v dmsetup >/dev/null || { echo "precisa de jq e dmsetup"; exit 1; }
 LOOP=$(losetup -fP --show "$IMG")
 HOLDER=""
+FAKE_TOPS=() FAKE_DMS=() FAKE_BACKS=()
 cleanup() {
   [[ -n $HOLDER ]] && kill "$HOLDER" 2>/dev/null || true
   umount "$WORK/mnt" 2>/dev/null || true
+  for l in "${FAKE_TOPS[@]}"; do losetup -d "$l" 2>/dev/null || true; done
+  for d in "${FAKE_DMS[@]}"; do dmsetup remove "$d" 2>/dev/null || true; done
+  for l in "${FAKE_BACKS[@]}"; do losetup -d "$l" 2>/dev/null || true; done
   losetup -d "$LOOP" 2>/dev/null || true
   rm -rf "$WORK"
 }
@@ -88,6 +93,81 @@ if "$BIN" eject "$LOOP" --no-power-off --allow-non-usb >/dev/null 2>&1 && ! find
 else
   bad "eject não desmontou"
 fi
+
+# ---------------------------------------------------------------- M2
+# Pendrives falsos de verdade via device-mapper, expostos como loop de topo:
+#   wrap:    N cópias lineares do mesmo trecho (endereço dá a volta)
+#   discard: trecho real + alvo "zero" (escritas somem, leituras dão zero)
+make_fake() { # nome tipo anunciado_MiB real_MiB  → define TOP e BACK_FILE
+  local name=$1 kind=$2 adv=$(( $3 * 2048 )) real=$(( $4 * 2048 ))
+  BACK_FILE=$WORK/$name.img
+  head -c "$(( $4 << 20 ))" /dev/urandom > "$BACK_FILE"
+  local back table="" off=0 len
+  back=$(losetup -f --show "$BACK_FILE"); FAKE_BACKS+=("$back")
+  if [[ $kind == wrap ]]; then
+    while (( off < adv )); do
+      len=$(( adv - off < real ? adv - off : real ))
+      table+="$off $len linear $back 0"$'\n'; off=$(( off + len ))
+    done
+  else
+    table="0 $real linear $back 0"$'\n'"$real $(( adv - real )) zero"$'\n'
+  fi
+  printf '%s' "$table" | dmsetup create "usbkeeper-e2e-$name"; FAKE_DMS+=("usbkeeper-e2e-$name")
+  # --direct-io=on: sem ele o loop grava no page cache do dm, indexado pelo
+  # endereço lógico, e a volta/descarte só ocorreria no writeback (invisível
+  # para a leitura). Pendrive real não tem essa camada de cache.
+  TOP=$(losetup -f --show --direct-io=on "/dev/mapper/usbkeeper-e2e-$name"); FAKE_TOPS+=("$TOP")
+  [[ $(cat "/sys/block/${TOP#/dev/}/loop/dio") == 1 ]] || { echo "loop sem direct-io; abortando"; exit 1; }
+}
+
+fake_check() { # dispositivo [args...] → JSON do relatório
+  local dev=$1; shift
+  "$BIN" fake-check "$dev" --allow-non-usb --yes-i-know "$dev" --json "$@" | jq -c .report || echo null
+}
+
+expect() { # descrição json filtro-jq
+  if jq -e "$3" <<<"$2" >/dev/null; then ok "$1"; else bad "$1: $2"; fi
+}
+
+MIB=1048576
+sum_before=$(sha256sum "$IMG" | cut -d' ' -f1)
+r=$(fake_check "$LOOP")
+expect "rápido: genuíno" "$r" '.verdict == "genuine"'
+[[ $(sha256sum "$IMG" | cut -d' ' -f1) == "$sum_before" ]] \
+  && ok "rápido: dados do genuíno intactos após restaurar" || bad "rápido alterou o genuíno"
+
+make_fake wrap wrap 128 32
+sum_before=$(sha256sum "$BACK_FILE" | cut -d' ' -f1)
+r=$(fake_check "$TOP")
+expect "rápido: wrap 32 MiB anunciado 128 → falso" "$r" \
+  ".verdict == \"fake\" and (.real_bytes - 32*$MIB | fabs) <= $MIB and .wrap_module_bytes == 32*$MIB"
+[[ $(sha256sum "$BACK_FILE" | cut -d' ' -f1) == "$sum_before" ]] \
+  && ok "rápido: dados do falso (wrap) restaurados bit a bit" || bad "rápido não restaurou o wrap"
+r=$(fake_check "$TOP" --full)
+expect "completo: wrap → real exato 32 MiB" "$r" ".verdict == \"fake\" and .real_bytes == 32*$MIB and .wrap_module_bytes == 32*$MIB"
+
+make_fake discard discard 128 40
+r=$(fake_check "$TOP")
+expect "rápido: descarte 40 MiB anunciado 128 → falso" "$r" \
+  ".verdict == \"fake\" and (.real_bytes - 40*$MIB | fabs) <= $MIB"
+r=$(fake_check "$TOP" --full)
+expect "completo: descarte → real exato 40 MiB" "$r" ".verdict == \"fake\" and .real_bytes == 40*$MIB"
+
+r=$(fake_check "$LOOP" --full)
+expect "completo: genuíno" "$r" '.verdict == "genuine" and .bad_bytes == 0'
+
+b=$("$BIN" bench "$LOOP" --json --sample-mb 32 | jq -c .bench || echo null)
+expect "bench leitura" "$b" '.seq_read_mbps > 0 and .rand_read_iops > 0 and .seq_write_mbps == null'
+b=$("$BIN" bench "$LOOP" --write --allow-non-usb --yes-i-know "$LOOP" --json --sample-mb 32 | jq -c .bench || echo null)
+expect "bench escrita" "$b" '.seq_write_mbps > 0 and .rand_write_iops > 0'
+
+# Ctrl+C no meio do teste completo: sai com erro e mensagem de cancelamento.
+truncate -s 2G "$WORK/grande.img"
+BIG=$(losetup -f --show "$WORK/grande.img"); FAKE_BACKS+=("$BIG")
+# --foreground: sem ele o timeout repete o sinal para o grupo inteiro (= 2 Ctrl+C).
+out=$(timeout --foreground -s INT 2 "$BIN" fake-check "$BIG" --full --allow-non-usb --yes-i-know "$BIG" 2>&1) \
+  && bad "Ctrl+C não interrompeu" \
+  || { [[ $out == *cancelado* ]] && ok "Ctrl+C cancela o teste completo" || bad "Ctrl+C: $out"; }
 
 echo
 echo "$pass ok, $fail falhas"

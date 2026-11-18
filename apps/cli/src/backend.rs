@@ -1,17 +1,21 @@
 //! Escolhe as implementações da plataforma atual.
 
-use usbkeeper_core::{Ejector, Enumerator, Formatter, Mounts};
+use usbkeeper_core::{BlockDevice, CoreError, Ejector, Enumerator, Formatter, Mounts};
+
+pub type OpenRaw = fn(&str, bool) -> Result<Box<dyn BlockDevice>, CoreError>;
 
 pub struct Backend {
     pub enumerator: Box<dyn Enumerator>,
     pub formatter: Box<dyn Formatter>,
     pub mounts: Box<dyn Mounts>,
     pub ejector: Box<dyn Ejector>,
+    /// Abre o dispositivo bruto (caminho, escrita?).
+    pub open_raw: OpenRaw,
 }
 
 #[cfg(target_os = "linux")]
 pub fn backend(include_virtual: bool) -> Backend {
-    use usbkeeper_linux::{LinuxEjector, LinuxEnumerator, LinuxFormatter, LinuxMounts};
+    use usbkeeper_linux::{LinuxEjector, LinuxEnumerator, LinuxFormatter, LinuxMounts, RawDevice};
     Backend {
         enumerator: Box::new(LinuxEnumerator {
             include_virtual,
@@ -20,12 +24,13 @@ pub fn backend(include_virtual: bool) -> Backend {
         formatter: Box::new(LinuxFormatter::default()),
         mounts: Box::new(LinuxMounts),
         ejector: Box::new(LinuxEjector),
+        open_raw: |path, write| Ok(Box::new(RawDevice::open(path, write)?)),
     }
 }
 
 #[cfg(not(target_os = "linux"))]
 pub fn backend(_include_virtual: bool) -> Backend {
-    use usbkeeper_core::{CoreError, Device, Holder, Step, format::FormatRequest};
+    use usbkeeper_core::{Device, Holder, Step, format::FormatRequest};
 
     struct Unsupported;
     fn err() -> CoreError {
@@ -64,5 +69,6 @@ pub fn backend(_include_virtual: bool) -> Backend {
         formatter: Box::new(Unsupported),
         mounts: Box::new(Unsupported),
         ejector: Box::new(Unsupported),
+        open_raw: |_, _| Err(err()),
     }
 }

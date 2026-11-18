@@ -6,7 +6,7 @@ use crate::platform::Holder;
 pub enum CoreError {
     #[error("dispositivo não encontrado: {0}")]
     NotFound(String),
-    #[error("falha ao consultar o sistema: {0}")]
+    #[error("{0}")]
     Backend(String),
     #[error("saída inesperada do sistema: {0}")]
     Parse(String),
@@ -19,6 +19,8 @@ pub enum CoreError {
     },
     #[error("o comando falhou: {command}\n{stderr}")]
     CommandFailed { command: String, stderr: String },
+    #[error("operação cancelada")]
+    Cancelled,
     #[error(transparent)]
     Io(#[from] std::io::Error),
 }

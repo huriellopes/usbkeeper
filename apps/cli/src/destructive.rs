@@ -15,15 +15,79 @@ use usbkeeper_core::{CoreError, Device};
 use crate::backend::Backend;
 use crate::view::print_holders;
 
+/// Opções de segurança comuns a toda operação que grava no disco.
+pub struct Guard {
+    pub unmount: bool,
+    pub allow_non_usb: bool,
+    pub yes_i_know: Option<String>,
+}
+
+impl Guard {
+    fn policy(&self) -> Policy {
+        Policy {
+            allow_non_usb: self.allow_non_usb,
+        }
+    }
+}
+
 pub struct FormatArgs {
     pub device: String,
     pub filesystem: Filesystem,
     pub table: Option<PartitionTable>,
     pub label: Option<String>,
-    pub unmount: bool,
-    pub allow_non_usb: bool,
-    pub yes_i_know: Option<String>,
+    pub guard: Guard,
     pub dry_run: bool,
+}
+
+/// Recusa cedo (antes de mostrar plano ou pedir confirmação). Disco montado
+/// só passa se `--unmount` foi pedido.
+pub fn precheck(device: &Device, guard: &Guard) -> Result<()> {
+    let refusals: Vec<Refusal> = safety::check_target(device, guard.policy())
+        .into_iter()
+        .filter(|r| !(guard.unmount && matches!(r, Refusal::Mounted { .. })))
+        .collect();
+    if refusals.is_empty() {
+        return Ok(());
+    }
+    let mut msg = refuse(device, &refusals).to_string();
+    if refusals
+        .iter()
+        .any(|r| matches!(r, Refusal::Mounted { .. }))
+    {
+        msg.push_str("\n(use --unmount para desmontar automaticamente)");
+    }
+    bail!(msg)
+}
+
+/// Permissão → confirmação pela série → desmontagem → releitura do disco,
+/// conferindo identidade e regras de novo. Devolve o estado atual do disco.
+pub fn confirm_and_take(b: &Backend, device: &Device, guard: &Guard) -> Result<Device> {
+    ensure_writable(device)?;
+    confirm(device, guard.yes_i_know.as_deref())?;
+    let identity = device.identity();
+
+    if device.is_mounted() {
+        eprintln!("Desmontando...");
+        b.mounts.unmount_all(device).map_err(busy_error)?;
+    }
+
+    // O pendrive pode ter sido trocado enquanto o usuário digitava.
+    let current = b.enumerator.get(&device.path)?;
+    if let Err(m) = safety::verify_same(&identity, &current) {
+        bail!(
+            "o dispositivo em {} mudou desde a confirmação (esperado série {:?} e {} bytes, encontrado {:?} e {} bytes); nada foi alterado",
+            device.path,
+            m.expected.serial,
+            m.expected.size_bytes,
+            m.found.serial,
+            m.found.size_bytes
+        );
+    }
+    let refusals = safety::check_target(&current, guard.policy());
+    if !refusals.is_empty() {
+        return Err(refuse(&current, &refusals));
+    }
+    Ok(current)
 }
 
 fn refuse(device: &Device, refusals: &[Refusal]) -> anyhow::Error {
@@ -32,7 +96,7 @@ fn refuse(device: &Device, refusals: &[Refusal]) -> anyhow::Error {
         .map(|r| format!("  - {}", r.message()))
         .collect();
     anyhow::anyhow!(
-        "{} não pode ser formatado:\n{}",
+        "{} não pode ser usado nesta operação:\n{}",
         device.path,
         reasons.join("\n")
     )
@@ -69,8 +133,8 @@ fn confirm(device: &Device, given: Option<&str>) -> Result<()> {
             if !std::io::stdin().is_terminal() {
                 bail!("sem terminal para confirmar; use --yes-i-know {token}");
             }
-            print!("\nPara confirmar, digite {token}: ");
-            std::io::stdout().flush()?;
+            eprint!("\nPara confirmar, digite {token}: ");
+            std::io::stderr().flush()?;
             let mut line = String::new();
             std::io::stdin().lock().read_line(&mut line)?;
             line
@@ -117,10 +181,6 @@ fn print_plan(device: &Device, request: &FormatRequest) {
 
 pub fn format(b: &Backend, args: FormatArgs) -> Result<()> {
     let device = b.enumerator.get(&args.device)?;
-    let policy = Policy {
-        allow_non_usb: args.allow_non_usb,
-    };
-
     let label = normalize_label(args.filesystem, args.label.as_deref().unwrap_or(""))
         .map_err(anyhow::Error::msg)?;
     let request = FormatRequest {
@@ -131,20 +191,7 @@ pub fn format(b: &Backend, args: FormatArgs) -> Result<()> {
         label,
     };
 
-    let refusals: Vec<Refusal> = safety::check_target(&device, policy)
-        .into_iter()
-        .filter(|r| !(args.unmount && matches!(r, Refusal::Mounted { .. })))
-        .collect();
-    if !refusals.is_empty() {
-        let mut msg = refuse(&device, &refusals).to_string();
-        if refusals
-            .iter()
-            .any(|r| matches!(r, Refusal::Mounted { .. }))
-        {
-            msg.push_str("\n(use --unmount para desmontar automaticamente)");
-        }
-        bail!(msg);
-    }
+    precheck(&device, &args.guard)?;
 
     let steps = b.formatter.plan(&device, &request)?;
     print_plan(&device, &request);
@@ -158,33 +205,7 @@ pub fn format(b: &Backend, args: FormatArgs) -> Result<()> {
         return Ok(());
     }
 
-    ensure_writable(&device)?;
-    confirm(&device, args.yes_i_know.as_deref())?;
-    let identity = device.identity();
-
-    if device.is_mounted() {
-        println!("Desmontando...");
-        if let Err(e) = b.mounts.unmount_all(&device) {
-            return Err(busy_error(e));
-        }
-    }
-
-    // O pendrive pode ter sido trocado enquanto o usuário digitava.
-    let current = b.enumerator.get(&device.path)?;
-    if let Err(m) = safety::verify_same(&identity, &current) {
-        bail!(
-            "o dispositivo em {} mudou desde a confirmação (esperado série {:?} e {} bytes, encontrado {:?} e {} bytes); nada foi alterado",
-            device.path,
-            m.expected.serial,
-            m.expected.size_bytes,
-            m.found.serial,
-            m.found.size_bytes
-        );
-    }
-    let refusals = safety::check_target(&current, policy);
-    if !refusals.is_empty() {
-        return Err(refuse(&current, &refusals));
-    }
+    let current = confirm_and_take(b, &device, &args.guard)?;
 
     let steps = b.formatter.plan(&current, &request)?;
     let total = steps.len();

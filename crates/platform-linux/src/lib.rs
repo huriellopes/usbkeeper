@@ -4,6 +4,7 @@
 pub mod format;
 pub mod lsblk;
 pub mod mounts;
+pub mod rawdev;
 pub mod sysfs;
 pub mod wsl;
 
@@ -14,6 +15,7 @@ use usbkeeper_core::{CoreError, Device, Enumerator, Transport};
 
 pub use format::LinuxFormatter;
 pub use mounts::{LinuxEjector, LinuxMounts, is_root};
+pub use rawdev::RawDevice;
 
 pub struct LinuxEnumerator {
     pub sys_root: PathBuf,
