@@ -1,6 +1,9 @@
 mod backend;
 mod checks;
 mod destructive;
+mod health;
+mod report;
+mod store;
 mod view;
 
 use anyhow::Result;
@@ -19,6 +22,9 @@ use crate::destructive::{FormatArgs, Guard};
     about = "Gerencia pendrives e HDs externos"
 )]
 struct Cli {
+    /// Não grava este comando no histórico
+    #[arg(long, global = true)]
+    no_history: bool,
     #[command(subcommand)]
     command: Command,
 }
@@ -103,6 +109,29 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
+    /// Saúde: SMART (HD/SSD) e, com --scan, leitura de toda a superfície
+    Health {
+        device: String,
+        /// Lê o disco inteiro procurando blocos ilegíveis (não grava nada)
+        #[arg(long)]
+        scan: bool,
+        /// Saída em JSON (sem barra de progresso)
+        #[arg(long)]
+        json: bool,
+    },
+    /// Histórico de testes: todos os dispositivos, ou um (nome, chave ou série)
+    History {
+        device: Option<String>,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Gera laudo HTML do dispositivo a partir do histórico
+    Report {
+        device: String,
+        /// Arquivo de saída (padrão: usbkeeper-<chave>.html)
+        #[arg(long, short = 'o')]
+        output: Option<std::path::PathBuf>,
+    },
     /// Desmonta e desliga o dispositivo para remoção segura
     Eject {
         device: String,
@@ -156,6 +185,9 @@ fn main() {
 }
 
 fn run(cli: Cli) -> Result<()> {
+    if cli.no_history {
+        store::disable();
+    }
     match cli.command {
         Command::List { all, json } => {
             let devices = backend(all).enumerator.list()?;
@@ -245,6 +277,11 @@ fn run(cli: Cli) -> Result<()> {
                 json,
             },
         )?,
+        Command::Health { device, scan, json } => {
+            health::health(&backend(true), health::HealthArgs { device, scan, json })?
+        }
+        Command::History { device, json } => report::history(&backend(true), device, json)?,
+        Command::Report { device, output } => report::report(&backend(true), device, output)?,
         Command::Eject {
             device,
             no_power_off,

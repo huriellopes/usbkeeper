@@ -11,6 +11,7 @@ pub mod model;
 pub mod pattern;
 pub mod platform;
 pub mod safety;
+pub mod scan;
 pub mod units;
 
 pub use blockdev::{BlockDevice, Phase, Progress};

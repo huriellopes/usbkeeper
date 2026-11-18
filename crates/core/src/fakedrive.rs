@@ -23,6 +23,7 @@ pub struct FakeDrive {
     kind: FakeKind,
     cells: HashMap<u64, Box<[u8; SECTOR]>>,
     rotten: HashSet<u64>,
+    unreadable: HashSet<u64>,
 }
 
 impl FakeDrive {
@@ -46,12 +47,20 @@ impl FakeDrive {
             kind,
             cells: HashMap::new(),
             rotten: HashSet::new(),
+            unreadable: HashSet::new(),
         }
     }
 
     /// Marca um setor físico como defeituoso (devolve lixo na leitura).
     pub fn with_rotten_sector(mut self, offset: u64) -> Self {
         self.rotten.insert(offset / SECTOR as u64);
+        self
+    }
+
+    /// Marca um setor lógico que falha com erro de E/S na leitura (como um
+    /// setor ilegível de verdade).
+    pub fn with_unreadable_sector(mut self, offset: u64) -> Self {
+        self.unreadable.insert(offset / SECTOR as u64);
         self
     }
 
@@ -102,6 +111,11 @@ impl BlockDevice for FakeDrive {
 
     fn read_at(&mut self, offset: u64, buf: &mut [u8]) -> io::Result<()> {
         self.check(offset, buf.len())?;
+        let first = offset / SECTOR as u64;
+        let count = (buf.len() / SECTOR) as u64;
+        if (first..first + count).any(|s| self.unreadable.contains(&s)) {
+            return Err(io::Error::other("erro de E/S simulado"));
+        }
         for (i, out) in buf.as_chunks_mut::<SECTOR>().0.iter_mut().enumerate() {
             let sector = offset / SECTOR as u64 + i as u64;
             match self.physical(sector) {

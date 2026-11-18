@@ -1,0 +1,16 @@
+{
+  "json_format_version": [1, 0],
+  "smartctl": {"version": [7, 5], "exit_status": 0},
+  "device": {"name": "/dev/sdc", "info_name": "/dev/sdc [USB NVMe JMicron]", "type": "sntjmicron", "protocol": "NVMe"},
+  "model_name": "WDC WDS500G2B0C-00PXH0",
+  "serial_number": "000000000001",
+  "smart_status": {"passed": true, "nvme": {"value": 0}},
+  "nvme_smart_health_information_log": {
+    "critical_warning": 0, "temperature": 41, "available_spare": 100, "available_spare_threshold": 10,
+    "percentage_used": 3, "power_cycles": 1520, "power_on_hours": 6120, "unsafe_shutdowns": 80,
+    "media_errors": 0, "num_err_log_entries": 0
+  },
+  "temperature": {"current": 41},
+  "power_cycle_count": 1520,
+  "power_on_time": {"hours": 6120}
+}

@@ -8,6 +8,7 @@ set -euo pipefail
 BIN=${BIN:-$(dirname "$0")/../target/debug/usbkeeper}
 WORK=$(mktemp -d)
 IMG=$WORK/pen.img
+export USBKEEPER_DB=$WORK/history.db   # histórico isolado do real
 truncate -s 600M "$IMG"
 command -v jq >/dev/null && command -v dmsetup >/dev/null || { echo "precisa de jq e dmsetup"; exit 1; }
 LOOP=$(losetup -fP --show "$IMG")
@@ -117,7 +118,11 @@ make_fake() { # nome tipo anunciado_MiB real_MiB  → define TOP e BACK_FILE
   head -c "$(( $4 << 20 ))" /dev/urandom > "$BACK_FILE"
   local back table="" off=0 len
   back=$(losetup -f --show "$BACK_FILE"); FAKE_BACKS+=("$back")
-  if [[ $kind == wrap ]]; then
+  if [[ $kind == badblock ]]; then
+    # 4 KiB que devolvem EIO em 10 MiB (setor ilegível de verdade).
+    local at=$(( 10 * 2048 ))
+    table="0 $at linear $back 0"$'\n'"$at 8 error"$'\n'"$(( at + 8 )) $(( real - at - 8 )) linear $back $(( at + 8 ))"$'\n'
+  elif [[ $kind == wrap ]]; then
     while (( off < adv )); do
       len=$(( adv - off < real ? adv - off : real ))
       table+="$off $len linear $back 0"$'\n'; off=$(( off + len ))
@@ -209,6 +214,33 @@ BIG=$(losetup -f --show "$WORK/grande.img"); FAKE_BACKS+=("$BIG")
 out=$(timeout --foreground -s INT 2 "$BIN" fake-check "$BIG" --full --allow-non-usb --yes-i-know "$BIG" 2>&1) \
   && bad "Ctrl+C não interrompeu" \
   || { [[ $out == *cancelado* ]] && ok "Ctrl+C cancela o teste completo" || bad "Ctrl+C: $out"; }
+
+# ---------------------------------------------------------------- M3
+make_fake bad badblock 64 64
+h=$("$BIN" health "$TOP" --scan --json | jq -c . || echo null)
+expect "varredura acha exatamente o bloco ilegível em 10 MiB" "$h" \
+  ".scan.unreadable_blocks == 1 and .scan.unreadable_offsets == [10*$MIB]"
+expect "loop sem SMART explica o motivo" "$h" '.smart.verdict == "unknown" and (.smart.notes | length) > 0'
+
+h=$("$BIN" health "$LOOP" --scan --json | jq -c . || echo null)
+expect "varredura limpa no genuíno" "$h" '.scan.unreadable_blocks == 0 and .scan.scanned_bytes > 0'
+
+# SMART real (somente leitura) nos discos físicos desta máquina.
+for disk in $(lsblk -dn -o NAME,TYPE,TRAN | awk '$2 == "disk" && $3 != "" {print $1}'); do
+  h=$("$BIN" --no-history health "$disk" --json | jq -c '{v: .smart.verdict, t: .smart.device_type, m: .smart.model}' || echo null)
+  expect "SMART real em $disk: $h" "$h" '.v != null and .v != "unknown"'
+done
+
+hist=$("$BIN" history --json | jq -c . || echo null)
+expect "histórico registra os dispositivos testados" "$hist" 'length >= 3'
+key=$(jq -r --arg size "$(( 128 * MIB ))" '.[] | select(.advertised_bytes == ($size | tonumber)) | .key' <<<"$hist" | head -1)
+ev=$("$BIN" history "$key" --json | jq -c '[.events[].kind] | unique' || echo null)
+expect "eventos do falso: fake_check registrado" "$ev" 'index("fake_check") != null'
+if "$BIN" report "$key" -o "$WORK/laudo.html" >/dev/null && grep -q "FALSIFICADO" "$WORK/laudo.html"; then
+  ok "laudo HTML do falso gerado ($(wc -c < "$WORK/laudo.html") bytes)"
+else
+  bad "laudo não gerado ou sem veredito"
+fi
 
 echo
 echo "$pass ok, $fail falhas"

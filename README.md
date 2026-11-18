@@ -3,8 +3,8 @@
 Gerenciador multiplataforma de pendrives e HDs externos: listar, formatar, verificar saúde,
 detectar pendrives **falsificados** (capacidade adulterada) e medir velocidade, com histórico por número de série.
 
-> Status: **M2**: listar, inspecionar, formatar, ejetar, **detectar falsificados** e medir velocidade no Linux.
-> SMART, histórico e as versões Windows/macOS chegam nas próximas etapas (ver [Roadmap](#roadmap)).
+> Status: **M3**: listar, formatar, ejetar, **detectar falsificados**, velocidade, **saúde (SMART + varredura)**,
+> **histórico** e **laudo HTML** no Linux. Windows, GUI e macOS chegam nas próximas etapas (ver [Roadmap](#roadmap)).
 
 ## Uso
 
@@ -32,6 +32,15 @@ sudo target/debug/usbkeeper format sdb --fs exfat --max-size 7640MiB
 sudo target/debug/usbkeeper bench sdb               # leitura sequencial + 4K aleatória (não destrutivo)
 sudo target/debug/usbkeeper bench sdb --write       # inclui escrita (destrutivo)
 
+# Saúde (precisa de root)
+sudo target/debug/usbkeeper health sdb              # SMART: HD/SSD, inclusive atrás de ponte USB
+sudo target/debug/usbkeeper health sdb --scan       # + lê o disco todo atrás de blocos ilegíveis (não grava)
+
+# Histórico e laudo (fake-check, bench e health são registrados automaticamente)
+usbkeeper history                                   # todos os dispositivos já testados
+usbkeeper history sdb                               # linha do tempo de um (nome, chave ou série)
+usbkeeper report sdb -o laudo.html                  # laudo HTML autocontido (imprima para PDF)
+
 # Remoção segura: desmonta e desliga; se algo estiver usando o disco, mostra o processo
 cargo run -- eject sdb
 ```
@@ -42,6 +51,18 @@ qualquer coisa e informa o pacote que falta.
 
 O `list` também avisa quando um dispositivo USB 3 negociou só velocidade USB 2
 (porta, hub ou cabo limitando).
+
+## Saúde e histórico
+
+- **SMART** via `smartctl -j`, tentando `auto`, `sat`, `usbjmicron`, `usbprolific` e `usbsunplus` até
+  um trazer dados. Veredito: saudável / atenção (realocados, pendentes, incorrigíveis, CRC, vida útil
+  NVMe ≥ 90%, temperatura ≥ 60 °C) / falhando (autoteste reprovado, atributo abaixo do limite, alerta
+  crítico NVMe). Pendrives e cartões quase nunca têm SMART: use `--scan`.
+- **Varredura** somente leitura em blocos de 1 MiB; quando um falha, relê em blocos de 4 KiB para
+  localizar o defeito. Trechos lentos (> 500 ms por MiB) são reportados como regiões degradadas.
+- **Histórico** em SQLite (`~/.local/share/usbkeeper/history.db`; com `sudo`, na home de quem chamou).
+  Chave: `VID:PID:série` (pendrives baratos repetem séries) ou, sem série, o tamanho anunciado.
+  `--no-history` desliga; `USBKEEPER_DB` muda o arquivo.
 
 ## Segurança
 
@@ -96,7 +117,9 @@ O WSL2 não enxerga USB do Windows. Use [usbipd-win](https://github.com/dorssel/
 |---|---|
 | `crates/core` | Modelo, traits de plataforma, SafetyGuard, algoritmos de fake-check e benchmark sobre `BlockDevice`, `FakeDrive` (falso emulado para testes) |
 | `crates/platform-linux` | `lsblk -J -b` + sysfs (velocidade USB), formatação (wipefs/sfdisk/mkfs), desmontagem via udisks, processos que prendem o disco (`/proc`), `RawDevice` (O_DIRECT/O_EXCL), WSL |
-| `apps/cli` | Binário `usbkeeper` (clap) |
+| `crates/smart` | `smartctl -j`: detecção da ponte USB, interpretação ATA/NVMe, veredito |
+| `crates/history` | SQLite (rusqlite *bundled*): dispositivos e eventos |
+| `apps/cli` | Binário `usbkeeper` (clap): comandos, barra de progresso, laudo HTML |
 
 ## Roadmap
 
@@ -104,7 +127,7 @@ O WSL2 não enxerga USB do Windows. Use [usbipd-win](https://github.com/dorssel/
 - [x] **M1**: `format` (GPT/MBR; FAT32/exFAT/NTFS/ext4), desmontar/ejetar mostrando quem prende o disco
 - [x] **M2**: `fake-check` (rápido estilo f3probe e completo grava+verifica) e `bench`
 - [x] **M2b**: `format --max-size` para reaproveitar só a capacidade real de um falso (como o f3fix)
-- [ ] **M3**: `health` (SMART via smartctl + varredura), histórico SQLite, laudo HTML/PDF
+- [x] **M3**: `health` (SMART via smartctl + varredura), histórico SQLite, laudo HTML/PDF
 - [ ] **M4**: Windows
 - [ ] **M5**: GUI Tauri 2
 - [ ] **M6**: macOS, gravador de ISO, imagem de disco
