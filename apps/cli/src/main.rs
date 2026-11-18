@@ -1,4 +1,5 @@
 mod backend;
+mod checks;
 mod destructive;
 mod view;
 
@@ -8,7 +9,8 @@ use usbkeeper_core::format::{Filesystem, PartitionTable};
 use usbkeeper_core::safety::{self, Policy};
 
 use crate::backend::backend;
-use crate::destructive::FormatArgs;
+use crate::checks::{BenchArgs, FakeCheckArgs};
+use crate::destructive::{FormatArgs, Guard};
 
 #[derive(Parser)]
 #[command(
@@ -66,6 +68,37 @@ enum Command {
         #[arg(long)]
         dry_run: bool,
     },
+    /// Verifica se o pendrive/cartão é falsificado (capacidade adulterada)
+    #[command(name = "fake-check")]
+    FakeCheck {
+        device: String,
+        /// Grava e lê o disco inteiro (definitivo, APAGA TUDO, demorado)
+        #[arg(long)]
+        full: bool,
+        /// Teste rápido sem salvar/restaurar os blocos originais
+        #[arg(long, conflicts_with = "full")]
+        no_backup: bool,
+        #[command(flatten)]
+        guard: GuardArgs,
+        /// Saída em JSON (sem barra de progresso)
+        #[arg(long)]
+        json: bool,
+    },
+    /// Mede velocidade: leitura sequencial e 4K (e escrita, com --write)
+    Bench {
+        device: String,
+        /// Também mede escrita (destrutivo: sobrescreve parte do disco)
+        #[arg(long)]
+        write: bool,
+        /// MB lidos/gravados no teste sequencial
+        #[arg(long, default_value_t = 256)]
+        sample_mb: u64,
+        #[command(flatten)]
+        guard: GuardArgs,
+        /// Saída em JSON (sem barra de progresso)
+        #[arg(long)]
+        json: bool,
+    },
     /// Desmonta e desliga o dispositivo para remoção segura
     Eject {
         device: String,
@@ -75,6 +108,29 @@ enum Command {
         #[arg(long)]
         allow_non_usb: bool,
     },
+}
+
+#[derive(clap::Args)]
+struct GuardArgs {
+    /// Desmonta as partições antes, se estiverem montadas
+    #[arg(long)]
+    unmount: bool,
+    /// Permite alvo que não seja USB (o disco do sistema continua proibido)
+    #[arg(long)]
+    allow_non_usb: bool,
+    /// Confirma sem perguntar; precisa ser o número de série (ou o caminho)
+    #[arg(long, value_name = "SERIE")]
+    yes_i_know: Option<String>,
+}
+
+impl From<GuardArgs> for Guard {
+    fn from(g: GuardArgs) -> Self {
+        Guard {
+            unmount: g.unmount,
+            allow_non_usb: g.allow_non_usb,
+            yes_i_know: g.yes_i_know,
+        }
+    }
 }
 
 fn main() {
@@ -132,10 +188,44 @@ fn run(cli: Cli) -> Result<()> {
                 filesystem,
                 table,
                 label,
-                unmount,
-                allow_non_usb,
-                yes_i_know,
+                guard: Guard {
+                    unmount,
+                    allow_non_usb,
+                    yes_i_know,
+                },
                 dry_run,
+            },
+        )?,
+        Command::FakeCheck {
+            device,
+            full,
+            no_backup,
+            guard,
+            json,
+        } => checks::fake_check(
+            &backend(true),
+            FakeCheckArgs {
+                device,
+                full,
+                no_backup,
+                guard: guard.into(),
+                json,
+            },
+        )?,
+        Command::Bench {
+            device,
+            write,
+            sample_mb,
+            guard,
+            json,
+        } => checks::bench(
+            &backend(true),
+            BenchArgs {
+                device,
+                write,
+                sample_mb,
+                guard: guard.into(),
+                json,
             },
         )?,
         Command::Eject {
