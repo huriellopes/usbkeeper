@@ -1,0 +1,9 @@
+[package]
+name = "usbkeeper-guide"
+description = "Guia de ajuda do usbkeeper (Markdown embutido; HTML e terminal)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+pulldown-cmark.workspace = true
