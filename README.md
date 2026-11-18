@@ -18,12 +18,15 @@ cargo run -- info sdb --json  # inclui os processos usando o disco
 cargo run -- format sdb --fs exfat -l "Fotos" --dry-run
 sudo target/debug/usbkeeper format sdb --fs exfat -l "Fotos" --unmount
 #   --fs fat32|exfat|ntfs|ext4   --table gpt|mbr (padrão: mbr até 2 TiB)
+#   --max-size 7.8G|7640MiB      só o início do disco (pendrive falso); força MBR
 #   --yes-i-know <SERIE>         confirma sem perguntar (scripts)
 
 # Pendrive falsificado? (precisa de root)
 sudo target/debug/usbkeeper fake-check sdb          # rápido (~segundos), restaura os blocos originais
 sudo target/debug/usbkeeper fake-check sdb --full   # definitivo: grava e lê tudo, APAGA o disco
 sudo target/debug/usbkeeper fake-check sdb --json   # laudo em JSON (prova para reembolso)
+# Falso? Reaproveite só a parte real (o fake-check sugere o valor, com 2% de margem):
+sudo target/debug/usbkeeper format sdb --fs exfat --max-size 7640MiB
 
 # Velocidade
 sudo target/debug/usbkeeper bench sdb               # leitura sequencial + 4K aleatória (não destrutivo)
@@ -68,6 +71,9 @@ mesma célula física).
   célula; Ctrl+C também restaura. Detecta descarte e "volta" com módulo potência de 2 (o caso comum);
   para módulos arbitrários, use o completo.
 
+Com `--max-size` o `format` cria uma única partição que termina antes do limite real, sempre em
+**MBR**: a GPT grava uma cópia do cabeçalho no último setor *anunciado*, que num falso não existe.
+
 O disco é aberto com `O_DIRECT` (a leitura vem do pendrive, não do cache) e `O_EXCL` (o kernel recusa
 se houver algo montado).
 
@@ -97,7 +103,7 @@ O WSL2 não enxerga USB do Windows. Use [usbipd-win](https://github.com/dorssel/
 - [x] **M0**: núcleo, SafetyGuard, `list`/`info` no Linux
 - [x] **M1**: `format` (GPT/MBR; FAT32/exFAT/NTFS/ext4), desmontar/ejetar mostrando quem prende o disco
 - [x] **M2**: `fake-check` (rápido estilo f3probe e completo grava+verifica) e `bench`
-- [ ] **M2b**: `format --max-size` para reaproveitar só a capacidade real de um falso (como o f3fix)
+- [x] **M2b**: `format --max-size` para reaproveitar só a capacidade real de um falso (como o f3fix)
 - [ ] **M3**: `health` (SMART via smartctl + varredura), histórico SQLite, laudo HTML/PDF
 - [ ] **M4**: Windows
 - [ ] **M5**: GUI Tauri 2

@@ -16,6 +16,7 @@ FAKE_TOPS=() FAKE_DMS=() FAKE_BACKS=()
 cleanup() {
   [[ -n $HOLDER ]] && kill "$HOLDER" 2>/dev/null || true
   umount "$WORK/mnt" 2>/dev/null || true
+  umount "$WORK/fake" 2>/dev/null || true
   for l in "${FAKE_TOPS[@]}"; do losetup -d "$l" 2>/dev/null || true; done
   for d in "${FAKE_DMS[@]}"; do dmsetup remove "$d" 2>/dev/null || true; done
   for l in "${FAKE_BACKS[@]}"; do losetup -d "$l" 2>/dev/null || true; done
@@ -116,7 +117,7 @@ make_fake() { # nome tipo anunciado_MiB real_MiB  → define TOP e BACK_FILE
   # --direct-io=on: sem ele o loop grava no page cache do dm, indexado pelo
   # endereço lógico, e a volta/descarte só ocorreria no writeback (invisível
   # para a leitura). Pendrive real não tem essa camada de cache.
-  TOP=$(losetup -f --show --direct-io=on "/dev/mapper/usbkeeper-e2e-$name"); FAKE_TOPS+=("$TOP")
+  TOP=$(losetup -f --show -P --direct-io=on "/dev/mapper/usbkeeper-e2e-$name"); FAKE_TOPS+=("$TOP")
   [[ $(cat "/sys/block/${TOP#/dev/}/loop/dio") == 1 ]] || { echo "loop sem direct-io; abortando"; exit 1; }
 }
 
@@ -152,6 +153,34 @@ expect "rápido: descarte 40 MiB anunciado 128 → falso" "$r" \
   ".verdict == \"fake\" and (.real_bytes - 40*$MIB | fabs) <= $MIB"
 r=$(fake_check "$TOP" --full)
 expect "completo: descarte → real exato 40 MiB" "$r" ".verdict == \"fake\" and .real_bytes == 40*$MIB"
+
+# M2b: reaproveitar o falso só na parte real, com a sugestão do relatório.
+max=$(jq -r .suggested_max_bytes <<<"$r")
+if [[ $max =~ ^[0-9]+$ ]] && (( max <= 40 * MIB )); then
+  ok "sugere --max-size $(( max / MIB )) MiB (≤ 40 MiB reais)"
+else
+  bad "sugestão de --max-size: $max"
+fi
+if "$BIN" format "$TOP" --fs exfat --max-size "$max" --allow-non-usb --yes-i-know "$TOP" >/dev/null 2>&1; then
+  dev=${TOP#/dev/}
+  end=$(( ( $(cat "/sys/block/$dev/${dev}p1/start") + $(cat "/sys/block/$dev/${dev}p1/size") ) * 512 ))
+  if (( end <= max )) && [[ $(blkid -p -s TYPE -o value "${TOP}p1") == exfat && $(blkid -p -s PTTYPE -o value "$TOP") == dos ]]; then
+    ok "format --max-size: exFAT/MBR terminando em $(( end / MIB )) MiB"
+  else
+    bad "partição termina em $end (máx $max)"
+  fi
+  mkdir -p "$WORK/fake"
+  head -c 30M /dev/urandom > "$WORK/dados.bin"
+  mount "${TOP}p1" "$WORK/fake" && cp "$WORK/dados.bin" "$WORK/fake/" && sync && umount "$WORK/fake"
+  blockdev --flushbufs "${TOP}p1" "$TOP"; echo 3 > /proc/sys/vm/drop_caches
+  mount -o ro "${TOP}p1" "$WORK/fake"
+  cmp -s "$WORK/dados.bin" "$WORK/fake/dados.bin" \
+    && ok "30 MB gravados no falso reformatado sobrevivem a remontar" \
+    || bad "dados corrompidos no falso reformatado"
+  umount "$WORK/fake"
+else
+  bad "format --max-size falhou"
+fi
 
 r=$(fake_check "$LOOP" --full)
 expect "completo: genuíno" "$r" '.verdict == "genuine" and .bad_bytes == 0'

@@ -55,6 +55,10 @@ enum Command {
         /// Rótulo do volume
         #[arg(long, short = 'l')]
         label: Option<String>,
+        /// Usa só o início do disco (ex.: 7800MiB): para pendrive falsificado,
+        /// com o valor sugerido pelo fake-check. Força tabela MBR.
+        #[arg(long, value_name = "TAMANHO", value_parser = usbkeeper_core::units::parse_size)]
+        max_size: Option<u64>,
         /// Desmonta as partições antes, se estiverem montadas
         #[arg(long)]
         unmount: bool,
@@ -188,6 +192,7 @@ fn run(cli: Cli) -> Result<()> {
             filesystem,
             table,
             label,
+            max_size,
             unmount,
             allow_non_usb,
             yes_i_know,
@@ -199,6 +204,7 @@ fn run(cli: Cli) -> Result<()> {
                 filesystem,
                 table,
                 label,
+                max_bytes: max_size,
                 guard: Guard {
                     unmount,
                     allow_non_usb,

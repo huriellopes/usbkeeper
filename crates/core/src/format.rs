@@ -114,6 +114,52 @@ pub struct FormatRequest {
     pub table: PartitionTable,
     /// Já normalizado por [`normalize_label`].
     pub label: Option<String>,
+    /// Limita a partição a esta posição final (pendrive falsificado: usar só
+    /// a capacidade real). `None` = disco inteiro.
+    pub max_bytes: Option<u64>,
+}
+
+/// Início da partição única (alinhamento padrão de 1 MiB).
+pub const PARTITION_START: u64 = 1 << 20;
+const MIN_PARTITION: u64 = 8 << 20;
+
+/// Escolhe a tabela. Com limite de tamanho só MBR é seguro: a GPT grava uma
+/// cópia do cabeçalho no último setor anunciado, que num falso não existe
+/// (a gravação some ou "dá a volta" e corrompe o início do disco).
+pub fn resolve_table(
+    explicit: Option<PartitionTable>,
+    disk_bytes: u64,
+    max_bytes: Option<u64>,
+) -> Result<PartitionTable, String> {
+    match (explicit, max_bytes) {
+        (Some(PartitionTable::Gpt), Some(_)) => Err(
+            "--max-size exige tabela MBR: a GPT grava uma cópia no fim do disco, \
+             que num pendrive falsificado não existe"
+                .into(),
+        ),
+        (_, Some(max)) if max > 2 * 1024 * 1024 * 1024 * 1024 => {
+            Err("--max-size acima de 2 TiB não cabe em MBR".into())
+        }
+        (_, Some(_)) => Ok(PartitionTable::Mbr),
+        (Some(t), None) => Ok(t),
+        (None, None) => Ok(PartitionTable::default_for(disk_bytes)),
+    }
+}
+
+/// Tamanho da partição, em setores de 512 B, para que ela termine antes de
+/// `max_bytes` (alinhado em 1 MiB, começando em [`PARTITION_START`]).
+pub fn partition_sectors(disk_bytes: u64, max_bytes: u64) -> Result<u64, String> {
+    if max_bytes >= disk_bytes {
+        return Err(format!(
+            "--max-size ({max_bytes} bytes) precisa ser menor que o disco ({disk_bytes} bytes)"
+        ));
+    }
+    let mib = 1 << 20;
+    let usable = max_bytes.saturating_sub(PARTITION_START) / mib * mib;
+    if usable < MIN_PARTITION {
+        return Err("--max-size pequeno demais (mínimo ~9 MiB)".into());
+    }
+    Ok(usable / 512)
 }
 
 /// Valida e normaliza o rótulo. FAT32 guarda em maiúsculas e não aceita
@@ -198,6 +244,33 @@ mod tests {
         assert_eq!(partition_path("/dev/nvme0n1", 1), "/dev/nvme0n1p1");
         assert_eq!(partition_path("/dev/mmcblk0", 2), "/dev/mmcblk0p2");
         assert_eq!(partition_path("/dev/loop7", 1), "/dev/loop7p1");
+    }
+
+    #[test]
+    fn max_size_forces_mbr_and_refuses_gpt() {
+        let gib = 1u64 << 30;
+        assert_eq!(
+            resolve_table(None, 64 * gib, Some(8 * gib)),
+            Ok(PartitionTable::Mbr)
+        );
+        assert!(resolve_table(Some(PartitionTable::Gpt), 64 * gib, Some(8 * gib)).is_err());
+        assert_eq!(
+            resolve_table(Some(PartitionTable::Gpt), 64 * gib, None),
+            Ok(PartitionTable::Gpt)
+        );
+        assert!(resolve_table(None, 8 << 40, Some(3 << 40)).is_err());
+    }
+
+    #[test]
+    fn partition_ends_before_max_size() {
+        let sectors = partition_sectors(128 << 20, 40 << 20).unwrap();
+        assert_eq!(sectors, 39 * 2048);
+        assert!(PARTITION_START + sectors * 512 <= 40 << 20);
+        // não alinhado: arredonda para baixo
+        let s = partition_sectors(128 << 20, (40 << 20) + 12345).unwrap();
+        assert_eq!(s, 39 * 2048);
+        assert!(partition_sectors(128 << 20, 128 << 20).is_err());
+        assert!(partition_sectors(128 << 20, 4 << 20).is_err());
     }
 
     #[test]
