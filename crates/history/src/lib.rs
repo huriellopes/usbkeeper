@@ -351,9 +351,8 @@ mod tests {
 
     #[test]
     fn reopening_keeps_data_and_schema() {
-        let dir = std::env::temp_dir().join(format!("usbkeeper-hist-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
-        let path = dir.join("h.db");
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("h.db");
         {
             let mut h = History::open(&path).unwrap();
             h.record(
@@ -368,7 +367,9 @@ mod tests {
         }
         let h = History::open(&path).unwrap();
         assert_eq!(h.devices().unwrap().len(), 1);
-        std::fs::remove_dir_all(&dir).unwrap();
+        // No Windows um arquivo aberto não pode ser apagado: fecha antes do
+        // TempDir limpar o diretório.
+        drop(h);
     }
 
     #[test]
