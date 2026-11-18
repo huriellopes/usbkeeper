@@ -27,6 +27,8 @@ type AppState = {
   opFinished: (f: OpFinished) => void;
 };
 
+let lastSnapshot = "";
+
 export const useApp = create<AppState>((set, get) => ({
   devices: [],
   selected: null,
@@ -34,6 +36,10 @@ export const useApp = create<AppState>((set, get) => ({
   ops: {},
   finished: {},
   setDevices: (devices) => {
+    // Resposta igual à anterior: não troca o estado (evita redesenhar a cada 2 s).
+    const snapshot = JSON.stringify(devices);
+    if (snapshot === lastSnapshot && get().error === null) return;
+    lastSnapshot = snapshot;
     const sel = get().selected;
     const stillThere = devices.some((d) => d.device.path === sel);
     const firstUsable = devices.find((d) => !d.is_system)?.device.path ?? devices[0]?.device.path ?? null;

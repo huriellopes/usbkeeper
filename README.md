@@ -3,10 +3,30 @@
 Gerenciador multiplataforma de pendrives e HDs externos: listar, formatar, verificar saúde,
 detectar pendrives **falsificados** (capacidade adulterada) e medir velocidade, com histórico por número de série.
 
-> Status: **M3**: listar, formatar, ejetar, **detectar falsificados**, velocidade, **saúde (SMART + varredura)**,
-> **histórico** e **laudo HTML** no Linux. Windows, GUI e macOS chegam nas próximas etapas (ver [Roadmap](#roadmap)).
+> Status: **M5**: CLI e **interface gráfica** no Linux: listar, formatar, ejetar, **detectar falsificados**,
+> velocidade, **saúde (SMART + varredura)**, **histórico** e **laudo HTML**. Windows e macOS chegam nas próximas etapas (ver [Roadmap](#roadmap)).
 
-## Uso
+## Interface gráfica
+
+```sh
+cd apps/gui && npm ci && npx tauri build      # gera target/release/bundle/deb/usbkeeper_<versão>_amd64.deb
+sudo apt install ./target/release/bundle/deb/usbkeeper_*_amd64.deb
+```
+
+A janela lista os discos ao vivo (USB primeiro; o disco do sistema aparece com 🔒 e sem ações
+destrutivas) e tem abas para **Verificar** (fake-check), **Saúde**, **Velocidade**, **Formatar** e
+**Histórico**, além de **Ejetar**.
+
+A interface **nunca roda como root**: para testar ou formatar ela executa a própria CLI via
+`pkexec /usr/bin/usbkeeper …`, então todas as travas de segurança da CLI valem também na janela.
+A senha é pedida uma vez e vale por alguns minutos (polkit `auth_admin_keep`). A confirmação
+destrutiva exige digitar a série, como na CLI, e a CLI confere tudo de novo.
+
+Desenvolvimento: `cd apps/gui && npx tauri dev`. `USBKEEPER_SHOW_VIRTUAL=1` lista loop devices e
+libera alvos não-USB; `USBKEEPER_CLI=…` escolhe a CLI usada. Orçamento: `scripts/measure-gui.sh`
+(< 250 MB de PSS, < 1% de CPU parado).
+
+## Uso da linha de comando
 
 ```sh
 cargo run -- list            # discos visíveis e se podem ser alvo
@@ -120,7 +140,8 @@ O WSL2 não enxerga USB do Windows. Use [usbipd-win](https://github.com/dorssel/
 | `crates/platform-linux` | `lsblk -J -b` + sysfs (velocidade USB), formatação (wipefs/sfdisk/mkfs), desmontagem via udisks, processos que prendem o disco (`/proc`), `RawDevice` (O_DIRECT/O_EXCL), WSL |
 | `crates/smart` | `smartctl -j`: detecção da ponte USB, interpretação ATA/NVMe, veredito |
 | `crates/history` | SQLite (rusqlite *bundled*): dispositivos e eventos |
-| `apps/cli` | Binário `usbkeeper` (clap): comandos, barra de progresso, laudo HTML |
+| `apps/cli` | Binário `usbkeeper` (clap): comandos, barra de progresso, laudo HTML; `--progress-json`/`--cancel-stdin` para a interface |
+| `apps/gui` | Interface Tauri 2 (React + TS): lê discos/histórico como usuário, opera via `pkexec usbkeeper` |
 
 ## Roadmap
 
@@ -130,7 +151,7 @@ O WSL2 não enxerga USB do Windows. Use [usbipd-win](https://github.com/dorssel/
 - [x] **M2b**: `format --max-size` para reaproveitar só a capacidade real de um falso (como o f3fix)
 - [x] **M3**: `health` (SMART via smartctl + varredura), histórico SQLite, laudo HTML/PDF
 - [ ] **M4**: Windows
-- [ ] **M5**: GUI Tauri 2
+- [x] **M5**: GUI Tauri 2
 - [ ] **M6**: macOS, gravador de ISO, imagem de disco
 
 ## Licença
