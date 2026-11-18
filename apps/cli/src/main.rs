@@ -133,6 +133,17 @@ impl From<GuardArgs> for Guard {
     }
 }
 
+/// Escreve JSON no stdout; se o leitor fechar o pipe (ex.: `| head`), sai
+/// em silêncio em vez de entrar em pânico.
+pub fn print_json<T: serde::Serialize>(value: &T) -> Result<()> {
+    use std::io::Write;
+    let text = serde_json::to_string_pretty(value)?;
+    match writeln!(std::io::stdout().lock(), "{text}") {
+        Err(e) if e.kind() == std::io::ErrorKind::BrokenPipe => Ok(()),
+        other => Ok(other?),
+    }
+}
+
 fn main() {
     if let Err(e) = run(Cli::parse()) {
         eprintln!("erro: {e:#}");
@@ -145,7 +156,7 @@ fn run(cli: Cli) -> Result<()> {
         Command::List { all, json } => {
             let devices = backend(all).enumerator.list()?;
             if json {
-                println!("{}", serde_json::to_string_pretty(&devices)?);
+                print_json(&devices)?;
             } else {
                 view::print_table(&devices);
                 view::wsl_hint(&devices);
@@ -167,7 +178,7 @@ fn run(cli: Cli) -> Result<()> {
                     "refusals": refusals,
                     "holders": holders,
                 });
-                println!("{}", serde_json::to_string_pretty(&out)?);
+                print_json(&out)?;
             } else {
                 view::print_info(&dev, policy, &holders);
             }

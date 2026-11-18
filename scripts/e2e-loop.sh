@@ -118,7 +118,7 @@ make_fake() { # nome tipo anunciado_MiB real_MiB  → define TOP e BACK_FILE
 
 fake_check() { # dispositivo [args...] → JSON do relatório
   local dev=$1; shift
-  "$BIN" fake-check "$dev" --allow-non-usb --yes-i-know "$dev" --json "$@" | jq -c .report
+  "$BIN" fake-check "$dev" --allow-non-usb --yes-i-know "$dev" --json "$@" | jq -c .report || echo null
 }
 
 expect() { # descrição json filtro-jq
@@ -152,9 +152,9 @@ expect "completo: descarte → real exato 40 MiB" "$r" ".verdict == \"fake\" and
 r=$(fake_check "$LOOP" --full)
 expect "completo: genuíno" "$r" '.verdict == "genuine" and .bad_bytes == 0'
 
-b=$("$BIN" bench "$LOOP" --json --sample-mb 32 | jq -c .bench)
+b=$("$BIN" bench "$LOOP" --json --sample-mb 32 | jq -c .bench || echo null)
 expect "bench leitura" "$b" '.seq_read_mbps > 0 and .rand_read_iops > 0 and .seq_write_mbps == null'
-b=$("$BIN" bench "$LOOP" --write --allow-non-usb --yes-i-know "$LOOP" --json --sample-mb 32 | jq -c .bench)
+b=$("$BIN" bench "$LOOP" --write --allow-non-usb --yes-i-know "$LOOP" --json --sample-mb 32 | jq -c .bench || echo null)
 expect "bench escrita" "$b" '.seq_write_mbps > 0 and .rand_write_iops > 0'
 
 # Ctrl+C no meio do teste completo: sai com erro e mensagem de cancelamento.

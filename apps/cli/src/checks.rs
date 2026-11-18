@@ -125,7 +125,7 @@ pub fn fake_check(b: &Backend, args: FakeCheckArgs) -> Result<()> {
     let device = b.enumerator.get(&args.device)?;
     precheck(&device, &args.guard)?;
 
-    println!(
+    eprintln!(
         "Alvo: {}  {}  ({} anunciados, série {})",
         device.path,
         device.display_name(),
@@ -133,18 +133,18 @@ pub fn fake_check(b: &Backend, args: FakeCheckArgs) -> Result<()> {
         device.serial.as_deref().unwrap_or("-")
     );
     if args.full {
-        println!(
+        eprintln!(
             "Teste COMPLETO: grava e lê o disco inteiro. TODOS OS DADOS SERÃO APAGADOS.\n\
              Pode levar horas (a {} a 10 MB/s: ~{}).",
             human_bytes(device.size_bytes),
             duration(device.size_bytes as f64 * 2.0 / 10e6)
         );
     } else if args.no_backup {
-        println!(
+        eprintln!(
             "Teste rápido SEM backup: os blocos de teste corrompem o sistema de arquivos atual."
         );
     } else {
-        println!(
+        eprintln!(
             "Teste rápido: grava ~200 blocos de 4 KiB espalhados e restaura os originais no fim.\n\
              Os dados devem sobreviver, mas tenha backup do que for importante."
         );
@@ -182,7 +182,7 @@ pub fn fake_check(b: &Backend, args: FakeCheckArgs) -> Result<()> {
 
     if args.json {
         let out = serde_json::json!({ "device": current, "report": report });
-        println!("{}", serde_json::to_string_pretty(&out)?);
+        crate::print_json(&out)?;
     } else {
         print_report(&current, &report);
     }
@@ -274,7 +274,7 @@ pub fn bench(b: &Backend, args: BenchArgs) -> Result<()> {
     let device = b.enumerator.get(&args.device)?;
     let current = if args.write {
         precheck(&device, &args.guard)?;
-        println!(
+        eprintln!(
             "Benchmark com ESCRITA em {} ({}): sobrescreve ~{} MB do início e do meio do disco.",
             device.path,
             device.display_name(),
@@ -305,7 +305,7 @@ pub fn bench(b: &Backend, args: BenchArgs) -> Result<()> {
 
     if args.json {
         let out = serde_json::json!({ "device": current, "bench": result });
-        println!("{}", serde_json::to_string_pretty(&out)?);
+        crate::print_json(&out)?;
     } else {
         print_bench(&current, &result);
     }

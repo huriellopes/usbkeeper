@@ -67,7 +67,7 @@ pub fn confirm_and_take(b: &Backend, device: &Device, guard: &Guard) -> Result<D
     let identity = device.identity();
 
     if device.is_mounted() {
-        println!("Desmontando...");
+        eprintln!("Desmontando...");
         b.mounts.unmount_all(device).map_err(busy_error)?;
     }
 
@@ -133,8 +133,8 @@ fn confirm(device: &Device, given: Option<&str>) -> Result<()> {
             if !std::io::stdin().is_terminal() {
                 bail!("sem terminal para confirmar; use --yes-i-know {token}");
             }
-            print!("\nPara confirmar, digite {token}: ");
-            std::io::stdout().flush()?;
+            eprint!("\nPara confirmar, digite {token}: ");
+            std::io::stderr().flush()?;
             let mut line = String::new();
             std::io::stdin().lock().read_line(&mut line)?;
             line

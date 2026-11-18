@@ -399,6 +399,7 @@ dependencies = [
  "anyhow",
  "clap",
  "ctrlc",
+ "serde",
  "serde_json",
  "usbkeeper-core",
  "usbkeeper-linux",
