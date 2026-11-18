@@ -7,7 +7,9 @@
 use std::io::{BufRead, IsTerminal, Write};
 
 use anyhow::{Context, Result, bail};
-use usbkeeper_core::format::{Filesystem, FormatRequest, PartitionTable, normalize_label};
+use usbkeeper_core::format::{
+    Filesystem, FormatRequest, PartitionTable, normalize_label, resolve_table,
+};
 use usbkeeper_core::safety::{self, Policy, Refusal};
 use usbkeeper_core::units::human_bytes;
 use usbkeeper_core::{CoreError, Device};
@@ -35,6 +37,7 @@ pub struct FormatArgs {
     pub filesystem: Filesystem,
     pub table: Option<PartitionTable>,
     pub label: Option<String>,
+    pub max_bytes: Option<u64>,
     pub guard: Guard,
     pub dry_run: bool,
 }
@@ -177,18 +180,25 @@ fn print_plan(device: &Device, request: &FormatRequest) {
             .unwrap_or_default(),
         request.filesystem.hint()
     );
+    if let Some(max) = request.max_bytes {
+        println!(
+            "Limite:   partição termina antes de {} (o resto do disco fica sem uso)",
+            human_bytes(max)
+        );
+    }
 }
 
 pub fn format(b: &Backend, args: FormatArgs) -> Result<()> {
     let device = b.enumerator.get(&args.device)?;
     let label = normalize_label(args.filesystem, args.label.as_deref().unwrap_or(""))
         .map_err(anyhow::Error::msg)?;
+    let table =
+        resolve_table(args.table, device.size_bytes, args.max_bytes).map_err(anyhow::Error::msg)?;
     let request = FormatRequest {
         filesystem: args.filesystem,
-        table: args
-            .table
-            .unwrap_or_else(|| PartitionTable::default_for(device.size_bytes)),
+        table,
         label,
+        max_bytes: args.max_bytes,
     };
 
     precheck(&device, &args.guard)?;

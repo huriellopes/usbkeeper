@@ -4,7 +4,9 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-use usbkeeper_core::format::{Filesystem, FormatRequest, PartitionTable, partition_path};
+use usbkeeper_core::format::{
+    Filesystem, FormatRequest, PARTITION_START, PartitionTable, partition_path, partition_sectors,
+};
 use usbkeeper_core::{CoreError, Device, Formatter, Step};
 
 /// Tipo GPT "Microsoft basic data" (FAT/exFAT/NTFS) e "Linux filesystem".
@@ -44,7 +46,9 @@ fn mkfs_tool(fs: Filesystem) -> &'static str {
 
 /// Script do sfdisk: uma única partição ocupando o disco todo
 /// (alinhada em 1 MiB pelo próprio sfdisk).
-pub fn sfdisk_script(table: PartitionTable, fs: Filesystem) -> String {
+/// Com `size_sectors`, a partição começa em 1 MiB e tem esse tamanho
+/// (usado para limitar à capacidade real de um falso).
+pub fn sfdisk_script(table: PartitionTable, fs: Filesystem, size_sectors: Option<u64>) -> String {
     let (label, kind) = match (table, fs) {
         (PartitionTable::Mbr, Filesystem::Fat32) => ("dos", "c"), // W95 FAT32 (LBA)
         (PartitionTable::Mbr, Filesystem::Exfat | Filesystem::Ntfs) => ("dos", "7"),
@@ -52,7 +56,13 @@ pub fn sfdisk_script(table: PartitionTable, fs: Filesystem) -> String {
         (PartitionTable::Gpt, Filesystem::Ext4) => ("gpt", GPT_LINUX),
         (PartitionTable::Gpt, _) => ("gpt", GPT_BASIC_DATA),
     };
-    format!("label: {label}\ntype={kind}\n")
+    match size_sectors {
+        None => format!("label: {label}\ntype={kind}\n"),
+        Some(n) => format!(
+            "label: {label}\nstart={}, size={n}, type={kind}\n",
+            PARTITION_START / 512
+        ),
+    }
 }
 
 fn mkfs_args(fs: Filesystem, label: Option<&str>, part: &str) -> Vec<String> {
@@ -102,6 +112,11 @@ impl Formatter for LinuxFormatter {
         let sfdisk = self.tool("sfdisk")?;
         let mkfs = self.tool(mkfs_tool(request.filesystem))?;
         let settle = self.tool("udevadm").ok();
+        let size_sectors = request
+            .max_bytes
+            .map(|max| partition_sectors(device.size_bytes, max))
+            .transpose()
+            .map_err(CoreError::Backend)?;
 
         let mut steps = Vec::new();
         for p in &device.partitions {
@@ -129,7 +144,11 @@ impl Formatter for LinuxFormatter {
                     &device.path,
                 ],
             )
-            .with_stdin(sfdisk_script(request.table, request.filesystem)),
+            .with_stdin(sfdisk_script(
+                request.table,
+                request.filesystem,
+                size_sectors,
+            )),
         );
         if let Some(udevadm) = &settle {
             steps.push(Step::new(
@@ -235,6 +254,7 @@ mod tests {
             filesystem: Filesystem::Fat32,
             table: PartitionTable::Mbr,
             label: Some("PEN".into()),
+            max_bytes: None,
         };
         let steps = f.plan(&device("sdb", &["sdb1", "sdb2"]), &req).unwrap();
         assert_eq!(
@@ -260,6 +280,7 @@ mod tests {
             filesystem: Filesystem::Ext4,
             table: PartitionTable::Gpt,
             label: None,
+            max_bytes: None,
         };
         let steps = f.plan(&device("mmcblk0", &[]), &req).unwrap();
         assert_eq!(
@@ -283,9 +304,40 @@ mod tests {
             ["-Q", "-L", "HD", "/dev/sdb1"]
         );
         assert_eq!(
-            sfdisk_script(PartitionTable::Mbr, Filesystem::Exfat),
+            sfdisk_script(PartitionTable::Mbr, Filesystem::Exfat, None),
             "label: dos\ntype=7\n"
         );
+    }
+
+    #[test]
+    fn max_size_limits_partition_in_plan() {
+        let f = LinuxFormatter {
+            locate: fake_locate,
+        };
+        let mut dev = device("sdb", &[]);
+        dev.size_bytes = 64_000_000_000;
+        let req = FormatRequest {
+            filesystem: Filesystem::Exfat,
+            table: PartitionTable::Mbr,
+            label: None,
+            max_bytes: Some(7_800 << 20),
+        };
+        let steps = f.plan(&dev, &req).unwrap();
+        assert_eq!(
+            steps[1].stdin.as_deref(),
+            Some(format!("label: dos\nstart=2048, size={}, type=7\n", 7_799 * 2048).as_str())
+        );
+        req_too_big(&f, &dev);
+    }
+
+    fn req_too_big(f: &LinuxFormatter, dev: &Device) {
+        let req = FormatRequest {
+            filesystem: Filesystem::Exfat,
+            table: PartitionTable::Mbr,
+            label: None,
+            max_bytes: Some(dev.size_bytes),
+        };
+        assert!(matches!(f.plan(dev, &req), Err(CoreError::Backend(_))));
     }
 
     #[test]
@@ -298,6 +350,7 @@ mod tests {
             filesystem: Filesystem::Exfat,
             table: PartitionTable::Mbr,
             label: None,
+            max_bytes: None,
         };
         match f.plan(&device("sdb", &[]), &req) {
             Err(CoreError::MissingTool { tool, package }) => {

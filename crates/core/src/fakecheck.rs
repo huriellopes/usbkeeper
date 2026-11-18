@@ -64,6 +64,16 @@ pub struct FakeReport {
     pub write_mbps: Option<f64>,
     pub read_mbps: Option<f64>,
     pub seconds: f64,
+    /// Para falsos: valor para `format --max-size` (capacidade real com 2%
+    /// de margem, alinhada em 1 MiB).
+    pub suggested_max_bytes: Option<u64>,
+}
+
+/// Capacidade segura para reaproveitar um falso: 98% da real, em MiB inteiros.
+pub fn suggested_max_bytes(verdict: Verdict, real_bytes: u64) -> Option<u64> {
+    let mib = 1 << 20;
+    let safe = real_bytes / 100 * 98 / mib * mib;
+    (verdict == Verdict::Fake && safe >= 16 * mib).then_some(safe)
 }
 
 fn gcd(a: u64, b: u64) -> u64 {
@@ -170,6 +180,7 @@ pub fn full_check(
         write_mbps: Some(mbps(size, write_secs)),
         read_mbps: Some(mbps(size, read_secs)),
         seconds: started.elapsed().as_secs_f64(),
+        suggested_max_bytes: suggested_max_bytes(verdict, real_bytes),
     })
 }
 
@@ -428,6 +439,7 @@ pub fn quick_probe(
         write_mbps: None,
         read_mbps: None,
         seconds: started.elapsed().as_secs_f64(),
+        suggested_max_bytes: suggested_max_bytes(verdict, real_bytes),
     })
 }
 
@@ -464,6 +476,7 @@ mod tests {
     fn quick_genuine_64g() {
         let r = quick(&mut FakeDrive::genuine(64 * GIB));
         assert_eq!(r.verdict, Verdict::Genuine);
+        assert_eq!(r.suggested_max_bytes, None);
         assert_eq!(r.real_bytes, 64 * GIB);
     }
 
@@ -477,6 +490,9 @@ mod tests {
             r.real_bytes
         );
         assert_eq!(r.wrap_module_bytes, Some(8 * GIB));
+        let suggested = r.suggested_max_bytes.unwrap();
+        assert!(suggested < r.real_bytes && suggested > r.real_bytes / 100 * 97);
+        assert_eq!(suggested % MIB, 0);
     }
 
     #[test]

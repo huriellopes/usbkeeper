@@ -240,11 +240,20 @@ fn print_report(device: &Device, r: &FakeReport) {
     println!("  Duração:       {}", duration(r.seconds));
 
     match (r.verdict, r.mode) {
-        (Verdict::Fake, _) => println!(
-            "\nNão guarde nada importante nele: arquivos além de {} se perdem sem aviso.\n\
-             Guarde este resultado (--json) como prova para pedir reembolso.",
-            human_bytes(r.real_bytes)
-        ),
+        (Verdict::Fake, _) => {
+            println!(
+                "\nNão guarde nada importante nele: arquivos além de {} se perdem sem aviso.\n\
+                 Guarde este resultado (--json) como prova para pedir reembolso.",
+                human_bytes(r.real_bytes)
+            );
+            if let Some(max) = r.suggested_max_bytes {
+                println!(
+                    "Para aproveitar só a parte real (com 2% de margem):\n  usbkeeper format {} --fs exfat --max-size {}MiB",
+                    device.name,
+                    max >> 20
+                );
+            }
+        }
         (Verdict::Damaged, _) => {
             println!("\nO dispositivo está falhando; copie o que precisar e substitua-o.")
         }
