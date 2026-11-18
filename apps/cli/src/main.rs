@@ -121,12 +121,14 @@ enum Command {
     },
     /// Histórico de testes: todos os dispositivos, ou um (nome, chave ou série)
     History {
+        #[arg(allow_hyphen_values = true)]
         device: Option<String>,
         #[arg(long)]
         json: bool,
     },
     /// Gera laudo HTML do dispositivo a partir do histórico
     Report {
+        #[arg(allow_hyphen_values = true)]
         device: String,
         /// Arquivo de saída (padrão: usbkeeper-<chave>.html)
         #[arg(long, short = 'o')]
@@ -289,4 +291,24 @@ fn run(cli: Cli) -> Result<()> {
         } => destructive::eject(&backend(true), &device, allow_non_usb, !no_power_off)?,
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn history_and_report_accept_keys_starting_with_hyphen() {
+        // Chaves gravadas antes desta correção começavam com "-:-:".
+        let cli = Cli::try_parse_from(["usbkeeper", "history", "-:-:WD-1"]).unwrap();
+        assert!(matches!(cli.command, Command::History { device: Some(d), .. } if d == "-:-:WD-1"));
+        let cli = Cli::try_parse_from(["usbkeeper", "report", "-:-:x", "-o", "a.html"]).unwrap();
+        assert!(matches!(cli.command, Command::Report { device, .. } if device == "-:-:x"));
+    }
+
+    #[test]
+    fn cli_definition_is_valid() {
+        use clap::CommandFactory;
+        Cli::command().debug_assert();
+    }
 }

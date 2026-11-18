@@ -61,7 +61,8 @@ O `list` também avisa quando um dispositivo USB 3 negociou só velocidade USB 2
 - **Varredura** somente leitura em blocos de 1 MiB; quando um falha, relê em blocos de 4 KiB para
   localizar o defeito. Trechos lentos (> 500 ms por MiB) são reportados como regiões degradadas.
 - **Histórico** em SQLite (`~/.local/share/usbkeeper/history.db`; com `sudo`, na home de quem chamou).
-  Chave: `VID:PID:série` (pendrives baratos repetem séries) ou, sem série, o tamanho anunciado.
+  Chave: `VID:PID:série` (pendrives baratos repetem séries), `sem-usb:série` para discos internos e,
+  sem série, o tamanho anunciado no lugar dela.
   `--no-history` desliga; `USBKEEPER_DB` muda o arquivo.
 
 ## Segurança

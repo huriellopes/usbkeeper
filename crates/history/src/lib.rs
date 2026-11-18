@@ -26,16 +26,20 @@ impl DeviceInfo {
     /// Chave estável. Pendrives baratos repetem a mesma série entre unidades,
     /// então VID:PID entram na chave; sem série, o tamanho anunciado a substitui.
     pub fn key(&self) -> String {
-        let vid = self.vendor_id.as_deref().unwrap_or("-");
-        let pid = self.product_id.as_deref().unwrap_or("-");
+        // Nunca começa com "-": a chave é passada como argumento de linha de
+        // comando (`history <chave>`), e o parser a confundiria com uma opção.
+        let origin = match (&self.vendor_id, &self.product_id) {
+            (Some(vid), Some(pid)) => format!("{vid}:{pid}"),
+            _ => "sem-usb".to_string(),
+        };
         match self
             .serial
             .as_deref()
             .map(str::trim)
             .filter(|s| !s.is_empty())
         {
-            Some(serial) => format!("{vid}:{pid}:{serial}"),
-            None => format!("{vid}:{pid}:sem-serie:{}", self.advertised_bytes),
+            Some(serial) => format!("{origin}:{serial}"),
+            None => format!("{origin}:sem-serie:{}", self.advertised_bytes),
         }
     }
 }
@@ -285,7 +289,10 @@ mod tests {
         let mut sata = pen(Some("WD-1"));
         sata.vendor_id = None;
         sata.product_id = None;
-        assert_eq!(sata.key(), "-:-:WD-1");
+        assert_eq!(sata.key(), "sem-usb:WD-1");
+        sata.serial = None;
+        assert_eq!(sata.key(), "sem-usb:sem-serie:64000000000");
+        assert!(!sata.key().starts_with('-'));
     }
 
     #[test]
