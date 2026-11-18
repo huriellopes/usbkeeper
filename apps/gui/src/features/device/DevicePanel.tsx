@@ -1,4 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { cancelOperation } from "../../lib/api";
+import { useApp } from "../../lib/store";
+import { OperationBar } from "../ops/OperationBar";
 import type { DeviceView } from "../../lib/bindings/DeviceView";
 import { humanBytes } from "../../lib/format";
 import { Overview } from "./Overview";
@@ -11,6 +14,15 @@ export const TABS: { id: TabId; label: string; destructive: boolean }[] = [
 export function DevicePanel({ view }: { view: DeviceView }) {
   const [tab, setTab] = useState<TabId>("overview");
   const d = view.device;
+  const op = useApp((s) => s.ops[d.path]);
+  const opCancelling = useApp((s) => s.opCancelling);
+  // Re-renderiza 1x/s enquanto há operação, para o ETA andar.
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    if (!op) return;
+    const t = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(t);
+  }, [op]);
   return (
     <div className="flex h-full flex-col">
       <header className="border-b px-6 py-4" style={{ borderColor: "var(--line)" }}>
@@ -34,6 +46,16 @@ export function DevicePanel({ view }: { view: DeviceView }) {
           ))}
         </nav>
       </header>
+      {op && (
+        <OperationBar
+          op={op}
+          now={now}
+          onCancel={() => {
+            opCancelling(d.path);
+            cancelOperation(d.path).catch(() => {});
+          }}
+        />
+      )}
       <div className="flex-1 overflow-auto p-6">{tab === "overview" && <Overview view={view} />}</div>
     </div>
   );

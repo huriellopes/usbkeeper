@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { listDevices, usbHint } from "./lib/api";
+import { listDevices, onOpFinished, onOpProgress, usbHint } from "./lib/api";
 import { useApp } from "./lib/store";
 import { Sidebar } from "./features/sidebar/Sidebar";
 import { DevicePanel } from "./features/device/DevicePanel";
@@ -7,8 +7,14 @@ import { DevicePanel } from "./features/device/DevicePanel";
 const POLL_MS = 2000;
 
 export default function App() {
-  const { devices, selected, error, setDevices, setError, select } = useApp();
+  const { devices, selected, error, setDevices, setError, select, opProgress, opFinished } = useApp();
   const [hint, setHint] = useState<string | null>(null);
+  useEffect(() => {
+    const unlisten = [onOpProgress((e) => opProgress(e.device, e.id, e.progress)), onOpFinished(opFinished)];
+    return () => {
+      unlisten.forEach((p) => p.then((f) => f()));
+    };
+  }, [opProgress, opFinished]);
   useEffect(() => {
     usbHint().then(setHint).catch(() => setHint(null));
   }, []);
