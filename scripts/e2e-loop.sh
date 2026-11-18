@@ -113,7 +113,11 @@ make_fake() { # nome tipo anunciado_MiB real_MiB  → define TOP e BACK_FILE
     table="0 $real linear $back 0"$'\n'"$real $(( adv - real )) zero"$'\n'
   fi
   printf '%s' "$table" | dmsetup create "usbkeeper-e2e-$name"; FAKE_DMS+=("usbkeeper-e2e-$name")
-  TOP=$(losetup -f --show "/dev/mapper/usbkeeper-e2e-$name"); FAKE_TOPS+=("$TOP")
+  # --direct-io=on: sem ele o loop grava no page cache do dm, indexado pelo
+  # endereço lógico, e a volta/descarte só ocorreria no writeback (invisível
+  # para a leitura). Pendrive real não tem essa camada de cache.
+  TOP=$(losetup -f --show --direct-io=on "/dev/mapper/usbkeeper-e2e-$name"); FAKE_TOPS+=("$TOP")
+  [[ $(cat "/sys/block/${TOP#/dev/}/loop/dio") == 1 ]] || { echo "loop sem direct-io; abortando"; exit 1; }
 }
 
 fake_check() { # dispositivo [args...] → JSON do relatório
@@ -160,7 +164,8 @@ expect "bench escrita" "$b" '.seq_write_mbps > 0 and .rand_write_iops > 0'
 # Ctrl+C no meio do teste completo: sai com erro e mensagem de cancelamento.
 truncate -s 2G "$WORK/grande.img"
 BIG=$(losetup -f --show "$WORK/grande.img"); FAKE_BACKS+=("$BIG")
-out=$(timeout -s INT 2 "$BIN" fake-check "$BIG" --full --allow-non-usb --yes-i-know "$BIG" 2>&1) \
+# --foreground: sem ele o timeout repete o sinal para o grupo inteiro (= 2 Ctrl+C).
+out=$(timeout --foreground -s INT 2 "$BIN" fake-check "$BIG" --full --allow-non-usb --yes-i-know "$BIG" 2>&1) \
   && bad "Ctrl+C não interrompeu" \
   || { [[ $out == *cancelado* ]] && ok "Ctrl+C cancela o teste completo" || bad "Ctrl+C: $out"; }
 
