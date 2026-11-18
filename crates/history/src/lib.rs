@@ -239,6 +239,25 @@ impl History {
     }
 }
 
+/// Caminho padrão do banco. `home` substitui o diretório do usuário (a CLI
+/// passa a home de quem chamou o sudo/pkexec); `None` usa o ambiente.
+pub fn default_db_path(home: Option<&Path>) -> Option<std::path::PathBuf> {
+    use std::path::PathBuf;
+    let dir = if let Some(home) = home {
+        home.join(".local/share/usbkeeper")
+    } else if cfg!(windows) {
+        PathBuf::from(std::env::var_os("LOCALAPPDATA")?).join("usbkeeper")
+    } else if cfg!(target_os = "macos") {
+        PathBuf::from(std::env::var_os("HOME")?).join("Library/Application Support/usbkeeper")
+    } else {
+        std::env::var_os("XDG_DATA_HOME")
+            .map(PathBuf::from)
+            .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/share")))?
+            .join("usbkeeper")
+    };
+    Some(dir.join("history.db"))
+}
+
 pub fn now() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -370,6 +389,18 @@ mod tests {
         // No Windows um arquivo aberto não pode ser apagado: fecha antes do
         // TempDir limpar o diretório.
         drop(h);
+    }
+
+    #[test]
+    fn default_path_uses_given_home() {
+        let p = default_db_path(Some(std::path::Path::new("/home/ana"))).unwrap();
+        if cfg!(target_os = "linux") {
+            assert_eq!(
+                p,
+                std::path::PathBuf::from("/home/ana/.local/share/usbkeeper/history.db")
+            );
+        }
+        assert!(p.ends_with("history.db"));
     }
 
     #[test]

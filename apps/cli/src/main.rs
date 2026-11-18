@@ -2,6 +2,7 @@ mod backend;
 mod checks;
 mod destructive;
 mod health;
+mod machine;
 mod report;
 mod store;
 mod view;
@@ -25,6 +26,12 @@ struct Cli {
     /// Não grava este comando no histórico
     #[arg(long, global = true)]
     no_history: bool,
+    /// Progresso como linhas JSON no stderr (interface gráfica)
+    #[arg(long, global = true, hide = true)]
+    progress_json: bool,
+    /// Cancela ao ler a linha "cancel" no stdin (interface gráfica)
+    #[arg(long, global = true, hide = true)]
+    cancel_stdin: bool,
     #[command(subcommand)]
     command: Command,
 }
@@ -77,6 +84,9 @@ enum Command {
         /// Mostra o que seria feito, sem alterar nada
         #[arg(long)]
         dry_run: bool,
+        /// Resultado em JSON
+        #[arg(long)]
+        json: bool,
     },
     /// Verifica se o pendrive/cartão é falsificado (capacidade adulterada)
     #[command(name = "fake-check")]
@@ -142,6 +152,9 @@ enum Command {
         no_power_off: bool,
         #[arg(long)]
         allow_non_usb: bool,
+        /// Resultado em JSON
+        #[arg(long)]
+        json: bool,
     },
 }
 
@@ -180,8 +193,17 @@ pub fn print_json<T: serde::Serialize>(value: &T) -> Result<()> {
 }
 
 fn main() {
-    if let Err(e) = run(Cli::parse()) {
-        eprintln!("erro: {e:#}");
+    let cli = Cli::parse();
+    machine::set(machine::Mode {
+        progress_json: cli.progress_json,
+        cancel_stdin: cli.cancel_stdin,
+    });
+    if let Err(e) = run(cli) {
+        if machine::get().progress_json {
+            eprintln!("{}", machine::error_line(&format!("{e:#}")));
+        } else {
+            eprintln!("erro: {e:#}");
+        }
         std::process::exit(1);
     }
 }
@@ -231,6 +253,7 @@ fn run(cli: Cli) -> Result<()> {
             allow_non_usb,
             yes_i_know,
             dry_run,
+            json,
         } => destructive::format(
             &backend(true),
             FormatArgs {
@@ -245,6 +268,7 @@ fn run(cli: Cli) -> Result<()> {
                     yes_i_know,
                 },
                 dry_run,
+                json,
             },
         )?,
         Command::FakeCheck {
@@ -288,7 +312,8 @@ fn run(cli: Cli) -> Result<()> {
             device,
             no_power_off,
             allow_non_usb,
-        } => destructive::eject(&backend(true), &device, allow_non_usb, !no_power_off)?,
+            json,
+        } => destructive::eject(&backend(true), &device, allow_non_usb, !no_power_off, json)?,
     }
     Ok(())
 }
@@ -304,6 +329,20 @@ mod tests {
         assert!(matches!(cli.command, Command::History { device: Some(d), .. } if d == "-:-:WD-1"));
         let cli = Cli::try_parse_from(["usbkeeper", "report", "-:-:x", "-o", "a.html"]).unwrap();
         assert!(matches!(cli.command, Command::Report { device, .. } if device == "-:-:x"));
+    }
+
+    #[test]
+    fn machine_flags_are_global() {
+        let cli = Cli::try_parse_from([
+            "usbkeeper",
+            "fake-check",
+            "sdb",
+            "--json",
+            "--progress-json",
+            "--cancel-stdin",
+        ])
+        .unwrap();
+        assert!(cli.progress_json && cli.cancel_stdin);
     }
 
     #[test]

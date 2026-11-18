@@ -85,6 +85,23 @@ pub enum Phase {
 }
 
 impl Phase {
+    /// Identificador estável (snake_case) usado no protocolo `--progress-json`.
+    pub fn id(self) -> &'static str {
+        match self {
+            Phase::Backup => "backup",
+            Phase::Probe => "probe",
+            Phase::Write => "write",
+            Phase::Verify => "verify",
+            Phase::Refine => "refine",
+            Phase::Restore => "restore",
+            Phase::SeqRead => "seq_read",
+            Phase::RandRead => "rand_read",
+            Phase::SeqWrite => "seq_write",
+            Phase::RandWrite => "rand_write",
+            Phase::Scan => "scan",
+        }
+    }
+
     pub fn label(self) -> &'static str {
         match self {
             Phase::Backup => "salvando blocos originais",
@@ -175,6 +192,13 @@ mod tests {
         let b = AlignedBuf::new(8192);
         assert_eq!(b.as_ptr() as usize % ALIGN, 0);
         assert!(b.iter().all(|&x| x == 0));
+    }
+
+    #[test]
+    fn phase_ids_are_stable_snake_case() {
+        assert_eq!(Phase::Probe.id(), "probe");
+        assert_eq!(Phase::SeqRead.id(), "seq_read");
+        assert_eq!(Phase::Scan.id(), "scan");
     }
 
     #[test]

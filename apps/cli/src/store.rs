@@ -1,7 +1,7 @@
 //! Onde fica o histórico e como gravar nele a partir dos comandos.
 //!
-//! Os testes rodam com sudo; sem cuidado o banco iria para /root. Com
-//! `SUDO_USER`, usa a home desse usuário e devolve a posse dos arquivos a ele.
+//! Os testes rodam com sudo (ou pkexec, pela interface); sem cuidado o banco
+//! iria para /root. Usa a home de quem chamou e devolve a posse dos arquivos.
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -17,55 +17,67 @@ pub fn disable() {
     DISABLED.store(true, Ordering::Relaxed);
 }
 
-/// Usuário "de verdade" quando rodando via sudo: (home, uid, gid).
-#[cfg(unix)]
-fn sudo_user() -> Option<(PathBuf, u32, u32)> {
-    let user = std::env::var("SUDO_USER").ok().filter(|u| u != "root")?;
-    let uid = std::env::var("SUDO_UID").ok()?.parse().ok()?;
-    let gid = std::env::var("SUDO_GID").ok()?.parse().ok()?;
+/// Quem chamou de verdade quando o comando roda como root.
+pub struct Invoker {
+    pub home: PathBuf,
+    pub uid: u32,
+    pub gid: u32,
+}
+
+pub enum Lookup<'a> {
+    Name(&'a str),
+    Uid(u32),
+}
+
+pub fn passwd_entry(passwd: &str, by: Lookup<'_>) -> Option<Invoker> {
+    passwd.lines().find_map(|line| {
+        let f: Vec<&str> = line.split(':').collect();
+        if f.len() < 6 {
+            return None;
+        }
+        let uid: u32 = f[2].parse().ok()?;
+        let hit = match by {
+            Lookup::Name(n) => f[0] == n,
+            Lookup::Uid(u) => uid == u,
+        };
+        hit.then(|| Invoker {
+            home: PathBuf::from(f[5]),
+            uid,
+            gid: f[3].parse().unwrap_or(uid),
+        })
+    })
+}
+
+/// Via sudo (`SUDO_USER`) ou via pkexec (`PKEXEC_UID`, usado pela interface).
+fn invoker() -> Option<Invoker> {
+    if !cfg!(unix) {
+        return None;
+    }
     let passwd = std::fs::read_to_string("/etc/passwd").ok()?;
-    let home = passwd.lines().find_map(|line| {
-        let fields: Vec<&str> = line.split(':').collect();
-        (fields.first() == Some(&user.as_str()))
-            .then(|| fields.get(5).map(PathBuf::from))
-            .flatten()
-    })?;
-    Some((home, uid, gid))
-}
-
-#[cfg(not(unix))]
-fn sudo_user() -> Option<(PathBuf, u32, u32)> {
-    None
-}
-
-fn data_dir() -> Option<PathBuf> {
-    if let Some((home, _, _)) = sudo_user() {
-        return Some(home.join(".local/share/usbkeeper"));
+    if let Ok(user) = std::env::var("SUDO_USER")
+        && user != "root"
+    {
+        return passwd_entry(&passwd, Lookup::Name(&user));
     }
-    if cfg!(windows) {
-        return std::env::var_os("LOCALAPPDATA").map(|d| PathBuf::from(d).join("usbkeeper"));
-    }
-    if cfg!(target_os = "macos") {
-        return std::env::var_os("HOME")
-            .map(|h| PathBuf::from(h).join("Library/Application Support/usbkeeper"));
-    }
-    std::env::var_os("XDG_DATA_HOME")
-        .map(PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/share")))
-        .map(|d| d.join("usbkeeper"))
+    let uid: u32 = std::env::var("PKEXEC_UID").ok()?.parse().ok()?;
+    (uid != 0)
+        .then(|| passwd_entry(&passwd, Lookup::Uid(uid)))
+        .flatten()
 }
 
 pub fn db_path() -> Option<PathBuf> {
     std::env::var_os("USBKEEPER_DB")
         .map(PathBuf::from)
-        .or_else(|| data_dir().map(|d| d.join("history.db")))
+        .or_else(|| {
+            usbkeeper_history::default_db_path(invoker().as_ref().map(|i| i.home.as_path()))
+        })
 }
 
-/// Devolve ao usuário do sudo a posse de um arquivo/diretório criado como root.
+/// Devolve a quem chamou (sudo/pkexec) a posse de um arquivo criado como root.
 pub fn give_back(path: &Path) {
     #[cfg(unix)]
-    if let Some((_, uid, gid)) = sudo_user() {
-        let _ = std::os::unix::fs::chown(path, Some(uid), Some(gid));
+    if let Some(i) = invoker() {
+        let _ = std::os::unix::fs::chown(path, Some(i.uid), Some(i.gid));
     }
     #[cfg(not(unix))]
     let _ = path;
@@ -122,4 +134,22 @@ pub fn verdict_name<T: serde::Serialize>(v: &T) -> String {
         .ok()
         .and_then(|v| v.as_str().map(String::from))
         .unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const PASSWD: &str =
+        "root:x:0:0:root:/root:/bin/bash\nana:x:1000:1000:Ana,,,:/home/ana:/bin/zsh\n";
+
+    #[test]
+    fn finds_user_by_name_and_uid() {
+        let by_name = passwd_entry(PASSWD, Lookup::Name("ana")).unwrap();
+        assert_eq!((by_name.uid, by_name.gid), (1000, 1000));
+        assert_eq!(by_name.home, PathBuf::from("/home/ana"));
+        let by_uid = passwd_entry(PASSWD, Lookup::Uid(1000)).unwrap();
+        assert_eq!(by_uid.home, PathBuf::from("/home/ana"));
+        assert!(passwd_entry(PASSWD, Lookup::Uid(4242)).is_none());
+    }
 }

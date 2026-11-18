@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 
 use anyhow::{Result, bail};
 use usbkeeper_core::bench::{self, BenchOptions, BenchResult};
-use usbkeeper_core::blockdev::{Phase, Progress, Silent, fresh_seed};
+use usbkeeper_core::blockdev::{Phase, Progress, fresh_seed};
 use usbkeeper_core::fakecheck::{self, FakeReport, QuickOptions, Verdict};
 use usbkeeper_core::units::human_bytes;
 use usbkeeper_core::{CoreError, Device};
@@ -93,6 +93,9 @@ pub fn cancel_flag() -> Arc<AtomicBool> {
         }
         eprintln!("\nCancelando no próximo bloco... (Ctrl+C de novo força a saída)");
     });
+    if crate::machine::get().cancel_stdin {
+        crate::machine::watch_stdin(flag.clone());
+    }
     flag
 }
 
@@ -152,9 +155,8 @@ pub fn fake_check(b: &Backend, args: FakeCheckArgs) -> Result<()> {
     let current = confirm_and_take(b, &device, &args.guard)?;
     let mut raw = open_checked(b, &current, true)?;
     let cancel = cancel_flag();
-    let mut bar = Bar::new();
-    let mut silent = Silent;
-    let progress: &mut dyn Progress = if args.json { &mut silent } else { &mut bar };
+    let mut reporter = crate::machine::Reporter::new(args.json);
+    let progress: &mut dyn Progress = &mut reporter;
 
     let seed = fresh_seed();
     let result = if args.full {
@@ -166,7 +168,7 @@ pub fn fake_check(b: &Backend, args: FakeCheckArgs) -> Result<()> {
         };
         fakecheck::quick_probe(raw.as_mut(), opts, progress, &cancel)
     };
-    bar.finish();
+    reporter.finish();
 
     let report = match result {
         Ok(r) => r,
@@ -319,9 +321,8 @@ pub fn bench(b: &Backend, args: BenchArgs) -> Result<()> {
 
     let mut raw = open_checked(b, &current, args.write)?;
     let cancel = cancel_flag();
-    let mut bar = Bar::new();
-    let mut silent = Silent;
-    let progress: &mut dyn Progress = if args.json { &mut silent } else { &mut bar };
+    let mut reporter = crate::machine::Reporter::new(args.json);
+    let progress: &mut dyn Progress = &mut reporter;
     let options = BenchOptions {
         write: args.write,
         sample_bytes: args.sample_mb << 20,
@@ -329,7 +330,7 @@ pub fn bench(b: &Backend, args: BenchArgs) -> Result<()> {
         ..Default::default()
     };
     let result = bench::run(raw.as_mut(), options, progress, &cancel);
-    bar.finish();
+    reporter.finish();
     let result = match result {
         Err(CoreError::Cancelled) => bail!("cancelado"),
         other => other?,

@@ -215,6 +215,18 @@ out=$(timeout --foreground -s INT 2 "$BIN" fake-check "$BIG" --full --allow-non-
   && bad "Ctrl+C não interrompeu" \
   || { [[ $out == *cancelado* ]] && ok "Ctrl+C cancela o teste completo" || bad "Ctrl+C: $out"; }
 
+# ---------------------------------------------------------------- M5
+# Protocolo da interface gráfica: progresso JSON no stderr, cancel pelo stdin.
+lines=$("$BIN" --no-history fake-check "$LOOP" --allow-non-usb --yes-i-know "$LOOP" --json --progress-json 2>&1 >/dev/null | grep -c '"phase":"probe"' || true)
+(( lines > 0 )) && ok "--progress-json emite linhas de progresso ($lines)" || bad "--progress-json sem linhas"
+out=$( { sleep 1; echo cancel; } | "$BIN" --no-history fake-check "$BIG" --full --allow-non-usb --yes-i-know "$BIG" --json --progress-json --cancel-stdin 2>&1 >/dev/null ) \
+  && bad "cancel pelo stdin não interrompeu" \
+  || { grep -q '"error":"cancelado' <<<"$out" && ok "cancel pelo stdin + erro em JSON" || bad "cancel stdin: $(tail -1 <<<"$out")"; }
+f=$("$BIN" format "$LOOP" --fs exfat -l GUI --allow-non-usb --yes-i-know "$LOOP" --json | jq -c . || echo null)
+expect "format --json" "$f" '.filesystem == "exfat" and .label == "GUI"'
+steps=$("$BIN" format "$LOOP" --fs fat32 --allow-non-usb --yes-i-know "$LOOP" --json --progress-json 2>&1 >/dev/null | grep -c '"phase":"format"' || true)
+(( steps >= 3 )) && ok "format emite etapas no --progress-json ($steps)" || bad "format sem etapas JSON"
+
 # ---------------------------------------------------------------- M3
 make_fake bad badblock 64 64
 h=$("$BIN" health "$TOP" --scan --json | jq -c . || echo null)

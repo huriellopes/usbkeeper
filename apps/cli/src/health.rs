@@ -2,7 +2,7 @@
 
 use anyhow::{Result, bail};
 use serde_json::json;
-use usbkeeper_core::blockdev::{Progress, Silent};
+use usbkeeper_core::blockdev::Progress;
 use usbkeeper_core::scan::{self, ScanReport};
 use usbkeeper_core::units::human_bytes;
 use usbkeeper_core::{CoreError, Device};
@@ -10,7 +10,7 @@ use usbkeeper_history::kind;
 use usbkeeper_smart::{HealthReport, HealthVerdict};
 
 use crate::backend::Backend;
-use crate::checks::{Bar, cancel_flag, duration, open_checked};
+use crate::checks::{cancel_flag, duration, open_checked};
 use crate::store;
 
 pub struct HealthArgs {
@@ -29,11 +29,10 @@ pub fn health(b: &Backend, args: HealthArgs) -> Result<()> {
     let scan = if args.scan {
         let mut raw = open_checked(b, &device, false)?;
         let cancel = cancel_flag();
-        let mut bar = Bar::new();
-        let mut silent = Silent;
-        let progress: &mut dyn Progress = if args.json { &mut silent } else { &mut bar };
+        let mut reporter = crate::machine::Reporter::new(args.json);
+        let progress: &mut dyn Progress = &mut reporter;
         let result = scan::read_scan(raw.as_mut(), progress, &cancel);
-        bar.finish();
+        reporter.finish();
         match result {
             Err(CoreError::Cancelled) => bail!("varredura cancelada (nada foi gravado)"),
             other => Some(other?),
