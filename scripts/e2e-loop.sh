@@ -227,6 +227,23 @@ expect "format --json" "$f" '.filesystem == "exfat" and .label == "GUI"'
 steps=$("$BIN" format "$LOOP" --fs fat32 --allow-non-usb --yes-i-know "$LOOP" --json --progress-json 2>&1 >/dev/null | grep -c '"phase":"format"' || true)
 (( steps >= 3 )) && ok "format emite etapas no --progress-json ($steps)" || bad "format sem etapas JSON"
 
+# ---------------------------------------------------------------- M5b
+# Guia e remoção segura.
+n=$("$BIN" guia | grep -cE '^  [a-z-]+ +[[:upper:]]' || true)
+(( n == 12 )) && ok "guia lista 12 tópicos" || bad "guia lista $n tópicos"
+"$BIN" guia gpt | head -1 | grep -q "MBR × GPT" && ok "guia aceita apelido (gpt)" || bad "guia gpt"
+mount "${LOOP}p1" "$WORK/mnt"
+sleep 300 < /dev/null > "$WORK/mnt/segura.txt" &
+HOLDER=$!
+sleep 0.5
+err=$("$BIN" remover "$LOOP" --no-power-off --allow-non-usb --json --progress-json 2>&1 >/dev/null || true)
+jq -e --argjson p "$HOLDER" '.holders | map(.pid) | index($p) != null' <<<"$(tail -1 <<<"$err")" >/dev/null \
+  && ok "remover em uso devolve os processos em JSON" || bad "holders: $(tail -1 <<<"$err")"
+kill "$HOLDER"; wait "$HOLDER" 2>/dev/null || true; HOLDER=""
+"$BIN" remover "$LOOP" --no-power-off --allow-non-usb --json | jq -e '.powered_off == false' >/dev/null \
+  && ! findmnt -rn "$WORK/mnt" >/dev/null \
+  && ok "remover --no-power-off desmonta" || bad "remover --no-power-off"
+
 # ---------------------------------------------------------------- M3
 make_fake bad badblock 64 64
 h=$("$BIN" health "$TOP" --scan --json | jq -c . || echo null)
