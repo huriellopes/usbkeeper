@@ -36,11 +36,13 @@ impl Default for BenchOptions {
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 pub struct BenchResult {
     pub seq_read_mbps: f64,
     pub rand_read_iops: f64,
     pub seq_write_mbps: Option<f64>,
     pub rand_write_iops: Option<f64>,
+    #[cfg_attr(feature = "ts", ts(type = "number"))]
     pub sample_bytes: u64,
 }
 

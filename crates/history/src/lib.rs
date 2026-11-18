@@ -45,21 +45,27 @@ impl DeviceInfo {
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 pub struct DeviceRecord {
     pub key: String,
     pub serial: Option<String>,
     pub vendor_id: Option<String>,
     pub product_id: Option<String>,
     pub model: Option<String>,
+    #[cfg_attr(feature = "ts", ts(type = "number"))]
     pub advertised_bytes: u64,
+    #[cfg_attr(feature = "ts", ts(type = "number"))]
     pub first_seen: i64,
+    #[cfg_attr(feature = "ts", ts(type = "number"))]
     pub last_seen: i64,
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 pub struct DeviceSummary {
     #[serde(flatten)]
     pub device: DeviceRecord,
+    #[cfg_attr(feature = "ts", ts(type = "number"))]
     pub events: u64,
     /// Último veredito de fake-check, se houver.
     pub last_fake_verdict: Option<String>,
@@ -68,8 +74,11 @@ pub struct DeviceSummary {
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 pub struct Event {
+    #[cfg_attr(feature = "ts", ts(type = "number"))]
     pub id: i64,
+    #[cfg_attr(feature = "ts", ts(type = "number"))]
     pub at: i64,
     pub kind: String,
     pub verdict: Option<String>,

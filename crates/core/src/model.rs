@@ -1,6 +1,7 @@
 use serde::Serialize;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 #[serde(rename_all = "lowercase")]
 pub enum Transport {
     Usb,
@@ -28,6 +29,7 @@ impl Transport {
 
 /// Velocidade USB negociada, em ordem crescente.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 #[serde(rename_all = "snake_case")]
 pub enum UsbSpeed {
     Unknown,
@@ -67,6 +69,7 @@ impl UsbSpeed {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 pub struct UsbInfo {
     pub vendor_id: String,
     pub product_id: String,
@@ -93,9 +96,11 @@ impl UsbInfo {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 pub struct Partition {
     pub name: String,
     pub path: String,
+    #[cfg_attr(feature = "ts", ts(type = "number"))]
     pub size_bytes: u64,
     pub fstype: Option<String>,
     pub label: Option<String>,
@@ -105,9 +110,11 @@ pub struct Partition {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 pub struct Device {
     pub name: String,
     pub path: String,
+    #[cfg_attr(feature = "ts", ts(type = "number"))]
     pub size_bytes: u64,
     pub transport: Transport,
     pub removable: bool,
@@ -164,9 +171,11 @@ impl Device {
 
 /// O que precisa continuar igual entre a confirmação e a gravação.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 pub struct DeviceIdentity {
     pub path: String,
     pub serial: Option<String>,
+    #[cfg_attr(feature = "ts", ts(type = "number"))]
     pub size_bytes: u64,
 }
 
