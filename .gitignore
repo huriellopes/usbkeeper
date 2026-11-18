@@ -1,2 +1,4 @@
 /target
 *.img
+apps/gui/node_modules
+apps/gui/dist
