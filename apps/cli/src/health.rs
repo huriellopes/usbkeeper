@@ -129,6 +129,9 @@ fn print_smart(device: &Device, r: &HealthReport) {
     for note in &r.notes {
         println!("  - {note}");
     }
+    if matches!(r.verdict, HealthVerdict::Warning | HealthVerdict::Failing) {
+        println!("  Entenda cada item: usbkeeper guia saude");
+    }
     if !r.has_smart() {
         return;
     }

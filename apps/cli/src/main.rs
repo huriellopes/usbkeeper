@@ -7,7 +7,7 @@ mod report;
 mod store;
 mod view;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use usbkeeper_core::format::{Filesystem, PartitionTable};
 use usbkeeper_core::safety::{self, Policy};
@@ -144,7 +144,16 @@ enum Command {
         #[arg(long, short = 'o')]
         output: Option<std::path::PathBuf>,
     },
-    /// Desmonta e desliga o dispositivo para remoção segura
+    /// Guia: pendrive, HD externo, MBR × GPT, sistemas de arquivos, falsificados… (ex.: usbkeeper guia mbr)
+    Guia {
+        /// Tópico (id ou apelido). Sem tópico, lista todos.
+        topic: Option<String>,
+        /// Imprime o HTML do tópico
+        #[arg(long)]
+        html: bool,
+    },
+    /// Remove com segurança: desmonta e desliga (apelido: remover)
+    #[command(alias = "remover")]
     Eject {
         device: String,
         /// Só desmonta, sem desligar
@@ -200,7 +209,7 @@ fn main() {
     });
     if let Err(e) = run(cli) {
         if machine::get().progress_json {
-            eprintln!("{}", machine::error_line(&format!("{e:#}")));
+            eprintln!("{}", machine::error_value(&e));
         } else {
             eprintln!("erro: {e:#}");
         }
@@ -308,6 +317,24 @@ fn run(cli: Cli) -> Result<()> {
         }
         Command::History { device, json } => report::history(&backend(true), device, json)?,
         Command::Report { device, output } => report::report(&backend(true), device, output)?,
+        Command::Guia { topic, html } => match topic {
+            None => {
+                println!("Tópicos do guia (usbkeeper guia <tópico>):\n");
+                for t in usbkeeper_guide::topics() {
+                    println!("  {:<22} {}\n  {:<22} {}\n", t.id, t.title, "", t.summary);
+                }
+            }
+            Some(q) => {
+                let t = usbkeeper_guide::find(&q).with_context(|| {
+                    format!("tópico desconhecido: {q:?}; rode `usbkeeper guia` para ver a lista")
+                })?;
+                if html {
+                    println!("{}", usbkeeper_guide::to_html(t.markdown));
+                } else {
+                    print!("{}", usbkeeper_guide::to_terminal(t.markdown));
+                }
+            }
+        },
         Command::Eject {
             device,
             no_power_off,
@@ -343,6 +370,14 @@ mod tests {
         ])
         .unwrap();
         assert!(cli.progress_json && cli.cancel_stdin);
+    }
+
+    #[test]
+    fn guia_and_remover_parse() {
+        let cli = Cli::try_parse_from(["usbkeeper", "guia", "mbr"]).unwrap();
+        assert!(matches!(cli.command, Command::Guia { topic: Some(t), html: false } if t == "mbr"));
+        let cli = Cli::try_parse_from(["usbkeeper", "remover", "sdb"]).unwrap();
+        assert!(matches!(cli.command, Command::Eject { device, .. } if device == "sdb"));
     }
 
     #[test]

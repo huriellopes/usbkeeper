@@ -279,6 +279,7 @@ fn print_report(device: &Device, r: &FakeReport) {
                     max >> 20
                 );
             }
+            println!("Entenda: usbkeeper guia falsificados");
         }
         (Verdict::Damaged, _) => {
             println!("\nO dispositivo está falhando; copie o que precisar e substitua-o.")

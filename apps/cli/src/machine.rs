@@ -61,8 +61,13 @@ pub fn step_line(label: &str, done: u64, total: u64) -> String {
     .expect("serializável")
 }
 
-pub fn error_line(message: &str) -> String {
-    serde_json::json!({ "error": message }).to_string()
+/// Erro final em JSON; inclui os processos quando o disco está em uso.
+pub fn error_value(e: &anyhow::Error) -> serde_json::Value {
+    let mut v = serde_json::json!({ "error": format!("{e:#}") });
+    if let Some(busy) = e.downcast_ref::<crate::destructive::BusyError>() {
+        v["holders"] = serde_json::json!(busy.holders);
+    }
+    v
 }
 
 const THROTTLE: Duration = Duration::from_millis(100);
@@ -209,8 +214,20 @@ mod tests {
     }
 
     #[test]
-    fn error_line_is_json() {
-        let v: serde_json::Value = serde_json::from_str(&error_line("deu \"ruim\"")).unwrap();
-        assert_eq!(v["error"], "deu \"ruim\"");
+    fn busy_error_json_carries_holders() {
+        let e = anyhow::Error::new(crate::destructive::BusyError {
+            message: "/media/x está em uso".into(),
+            holders: vec![usbkeeper_core::Holder {
+                pid: 42,
+                command: "vlc".into(),
+                path: "/media/x/f.mkv".into(),
+            }],
+        });
+        let v = error_value(&e);
+        assert_eq!(v["holders"][0]["pid"], 42);
+        assert!(v["error"].as_str().unwrap().contains("em uso"));
+        let plain = error_value(&anyhow::anyhow!("deu \"ruim\""));
+        assert_eq!(plain["error"], "deu \"ruim\"");
+        assert!(plain.get("holders").is_none());
     }
 }
