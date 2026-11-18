@@ -91,7 +91,7 @@ pub fn find(query: &str) -> Option<Topic> {
 }
 
 fn options() -> Options {
-    Options::ENABLE_TABLES | Options::ENABLE_STRIKETHROUGH
+    Options::ENABLE_TABLES | Options::ENABLE_STRIKETHROUGH | Options::ENABLE_DEFINITION_LIST
 }
 
 /// HTML do tópico. HTML bruto escrito no Markdown é descartado.
@@ -143,6 +143,130 @@ mod tests {
             to_html("| a | b |\n|---|---|\n| 1 | 2 |\n\n<script>x</script>\n\ntexto <b>cru</b>");
         assert!(html.contains("<table>"));
         assert!(!html.contains("<script>") && !html.contains("<b>"));
+    }
+
+    /// Fatos obrigatórios por tópico: o texto pode variar, estes pontos não.
+    const MUST: [(&str, &[&str]); 12] = [
+        ("comecar", &["backup", "disco do sistema", "série", "senha"]),
+        (
+            "tipos",
+            &[
+                "pendrive",
+                "cartão",
+                "HD externo",
+                "SSD",
+                "NVMe",
+                "SMART",
+                "gaveta",
+            ],
+        ),
+        (
+            "usb",
+            &["USB 2.0", "USB 3", "480", "5 Gb/s", "cabo", "hub", "porta"],
+        ),
+        (
+            "mbr-gpt",
+            &["MBR", "GPT", "2 TiB", "4 partições", "UEFI", "BIOS", "TV"],
+        ),
+        (
+            "sistemas-de-arquivos",
+            &[
+                "FAT32",
+                "exFAT",
+                "NTFS",
+                "ext4",
+                "4 GB",
+                "macOS",
+                "journaling",
+            ],
+        ),
+        (
+            "formatar",
+            &[
+                "índice",
+                "recuper",
+                "apagar com segurança",
+                "antes de formatar",
+            ],
+        ),
+        (
+            "falsificados",
+            &[
+                "volta",
+                "descart",
+                "rápido",
+                "completo",
+                "--max-size",
+                "reembolso",
+            ],
+        ),
+        (
+            "saude",
+            &[
+                "realocados",
+                "pendentes",
+                "incorrigíveis",
+                "CRC",
+                "pendrive",
+                "varredura",
+                "trocar",
+            ],
+        ),
+        ("velocidade", &["MB/s", "IOPS", "4K", "sequencial", "cache"]),
+        (
+            "remover",
+            &[
+                "cache",
+                "em uso",
+                "gerenciador de arquivos",
+                "LED",
+                "Remover com segurança",
+            ],
+        ),
+        (
+            "protecoes",
+            &["disco do sistema", "USB", "série", "O_EXCL", "restaura"],
+        ),
+        (
+            "glossario",
+            &["Setor", "Partição", "Montar", "Firmware", "TRIM"],
+        ),
+    ];
+
+    #[test]
+    fn topics_cover_required_facts_and_are_substantial() {
+        for (id, facts) in MUST {
+            let t = find(id).unwrap();
+            for f in facts {
+                assert!(t.markdown.contains(f), "tópico {id} sem \"{f}\"");
+            }
+            let words = t.markdown.split_whitespace().count();
+            assert!(words >= 250, "tópico {id} curto demais ({words} palavras)");
+        }
+    }
+
+    #[test]
+    fn glossary_renders_as_definition_list() {
+        let md = find("glossario").unwrap().markdown;
+        assert!(to_html(md).contains("<dl>"));
+        let txt = to_terminal(md);
+        assert!(txt.contains("Setor\n    A menor unidade"), "{txt}");
+        assert!(
+            !txt.lines().any(|l| l.trim_start().starts_with(": ")),
+            "{txt}"
+        );
+    }
+
+    #[test]
+    fn real_topics_render_without_markdown_leftovers() {
+        for t in topics() {
+            let txt = to_terminal(t.markdown);
+            assert!(
+                !txt.contains("**") && !txt.contains('|') && !txt.contains("\n#"),
+                "{}:\n{txt}",
+                t.id
+            );
+        }
     }
 
     #[test]

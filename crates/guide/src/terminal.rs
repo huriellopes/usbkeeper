@@ -108,6 +108,16 @@ pub fn to_terminal(md: &str) -> String {
                 out.push_str("\n\n");
                 buf.clear();
             }
+            Event::End(TagEnd::DefinitionListTitle) => {
+                out.push_str(buf.trim());
+                out.push('\n');
+                buf.clear();
+            }
+            Event::End(TagEnd::DefinitionListDefinition) => {
+                out.push_str(&wrap(buf.trim(), "    ", "    "));
+                out.push_str("\n\n");
+                buf.clear();
+            }
             Event::Start(Tag::CodeBlock(_)) => code_block = true,
             Event::End(TagEnd::CodeBlock) => {
                 for l in buf.lines() {
