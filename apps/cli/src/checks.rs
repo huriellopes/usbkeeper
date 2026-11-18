@@ -135,8 +135,7 @@ pub fn fake_check(b: &Backend, args: FakeCheckArgs) -> Result<()> {
     if args.full {
         eprintln!(
             "Teste COMPLETO: grava e lê o disco inteiro. TODOS OS DADOS SERÃO APAGADOS.\n\
-             Pode levar horas (a {} a 10 MB/s: ~{}).",
-            human_bytes(device.size_bytes),
+             Tempo estimado a 10 MB/s (pendrive comum): ~{}; os lentos podem levar bem mais.",
             duration(device.size_bytes as f64 * 2.0 / 10e6)
         );
     } else if args.no_backup {
@@ -275,7 +274,7 @@ pub fn bench(b: &Backend, args: BenchArgs) -> Result<()> {
     let current = if args.write {
         precheck(&device, &args.guard)?;
         eprintln!(
-            "Benchmark com ESCRITA em {} ({}): sobrescreve ~{} MB do início e do meio do disco.",
+            "Benchmark com ESCRITA em {} {}: sobrescreve ~{} MB do início e do meio do disco.",
             device.path,
             device.display_name(),
             args.sample_mb
