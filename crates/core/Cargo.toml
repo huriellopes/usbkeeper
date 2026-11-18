@@ -1,0 +1,10 @@
+[package]
+name = "usbkeeper-core"
+description = "Tipos, regras de segurança e lógica portátil do usbkeeper"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+serde.workspace = true
+thiserror.workspace = true

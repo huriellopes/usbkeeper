@@ -1,0 +1,32 @@
+{
+   "blockdevices": [
+      {"name":"loop0","path":"/dev/loop0","type":"loop","size":131072,"tran":null,"rm":false,"hotplug":false,"vendor":null,"model":null,"serial":null,"fstype":"squashfs","label":null,"mountpoints":["/snap/core/1"],"ro":true,"pttype":null,"log-sec":512,"phy-sec":512},
+      {"name":"sda","path":"/dev/sda","type":"disk","size":1000204886016,"tran":"sata","rm":false,"hotplug":false,"vendor":"ATA     ","model":"WDC WD10SPZX-24Z10","serial":"WD-TESTSERIAL01","fstype":null,"label":null,"mountpoints":[],"ro":false,"pttype":"gpt","log-sec":512,"phy-sec":4096,
+         "children":[
+            {"name":"sda1","path":"/dev/sda1","type":"part","size":134217728,"tran":null,"rm":false,"hotplug":false,"vendor":null,"model":null,"serial":null,"fstype":null,"label":null,"mountpoints":[],"ro":false,"pttype":"gpt","log-sec":512,"phy-sec":4096},
+            {"name":"sda2","path":"/dev/sda2","type":"part","size":1000068874240,"tran":null,"rm":false,"hotplug":false,"vendor":null,"model":null,"serial":null,"fstype":"ntfs","label":"Disco Local","mountpoints":["/mnt/hd"],"ro":false,"pttype":"gpt","log-sec":512,"phy-sec":4096}
+         ]},
+      {"name":"zram0","path":"/dev/zram0","type":"disk","size":9360637952,"tran":null,"rm":false,"hotplug":false,"vendor":null,"model":null,"serial":null,"fstype":"swap","label":"zram0","mountpoints":["[SWAP]"],"ro":false,"pttype":null,"log-sec":4096,"phy-sec":4096},
+      {"name":"nvme0n1","path":"/dev/nvme0n1","type":"disk","size":500107862016,"tran":"nvme","rm":false,"hotplug":false,"vendor":null,"model":"WDC WDS500G2B0C-00PXH0","serial":"000000000001","fstype":null,"label":null,"mountpoints":[],"ro":false,"pttype":"gpt","log-sec":512,"phy-sec":512,
+         "children":[
+            {"name":"nvme0n1p1","path":"/dev/nvme0n1p1","type":"part","size":314572800,"tran":"nvme","rm":false,"hotplug":false,"vendor":null,"model":null,"serial":null,"fstype":"vfat","label":null,"mountpoints":["/boot/efi"],"ro":false,"pttype":"gpt","log-sec":512,"phy-sec":512},
+            {"name":"nvme0n1p2","path":"/dev/nvme0n1p2","type":"part","size":499791158272,"tran":"nvme","rm":false,"hotplug":false,"vendor":null,"model":null,"serial":null,"fstype":"ext4","label":"kubuntu","mountpoints":["/"],"ro":false,"pttype":"gpt","log-sec":512,"phy-sec":512}
+         ]},
+      {"name":"sdb","path":"/dev/sdb","type":"disk","size":15376000000,"tran":"usb","rm":true,"hotplug":true,"vendor":"Kingston","model":"DataTraveler 3.0","serial":"E0D55EA573F8","fstype":null,"label":null,"mountpoints":[null],"ro":false,"pttype":"dos","log-sec":512,"phy-sec":512,
+         "children":[
+            {"name":"sdb1","path":"/dev/sdb1","type":"part","size":15374000000,"tran":null,"rm":true,"hotplug":true,"vendor":null,"model":null,"serial":null,"fstype":"vfat","label":"PENDRIVE","mountpoints":["/media/user/PENDRIVE"],"ro":false,"pttype":"dos","log-sec":512,"phy-sec":512}
+         ]},
+      {"name":"sdc","path":"/dev/sdc","type":"disk","size":256060514304,"tran":"usb","rm":false,"hotplug":true,"vendor":"Samsung ","model":"Portable SSD T5","serial":"S000TEST","fstype":null,"label":null,"mountpoints":[null],"ro":false,"pttype":"gpt","log-sec":512,"phy-sec":512,
+         "children":[
+            {"name":"sdc1","path":"/dev/sdc1","type":"part","size":536870912,"tran":null,"rm":false,"hotplug":true,"vendor":null,"model":null,"serial":null,"fstype":"vfat","label":null,"mountpoints":[null],"ro":false,"pttype":"gpt","log-sec":512,"phy-sec":512},
+            {"name":"sdc2","path":"/dev/sdc2","type":"part","size":255522586624,"tran":null,"rm":false,"hotplug":true,"vendor":null,"model":null,"serial":null,"fstype":"crypto_LUKS","label":null,"mountpoints":[null],"ro":false,"pttype":"gpt","log-sec":512,"phy-sec":512,
+               "children":[
+                  {"name":"luks-abc","path":"/dev/mapper/luks-abc","type":"crypt","size":255506857984,"tran":null,"rm":false,"hotplug":false,"vendor":null,"model":null,"serial":null,"fstype":"LVM2_member","label":null,"mountpoints":[null],"ro":false,"pttype":null,"log-sec":512,"phy-sec":512,
+                     "children":[
+                        {"name":"vg-root","path":"/dev/mapper/vg-root","type":"lvm","size":255506857984,"tran":null,"rm":false,"hotplug":false,"vendor":null,"model":null,"serial":null,"fstype":"ext4","label":null,"mountpoints":["/"],"ro":false,"pttype":null,"log-sec":512,"phy-sec":512}
+                     ]}
+               ]}
+         ]},
+      {"name":"sdd","path":"/dev/sdd","type":"disk","size":"0","tran":"usb","rm":"1","hotplug":"1","vendor":"Generic-","model":"SD/MMC","serial":null,"fstype":null,"label":null,"mountpoint":null,"ro":"0","pttype":null,"log-sec":"512","phy-sec":"512"}
+   ]
+}

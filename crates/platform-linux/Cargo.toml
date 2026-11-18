@@ -1,0 +1,14 @@
+[package]
+name = "usbkeeper-linux"
+description = "Backend Linux do usbkeeper (lsblk + sysfs)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+usbkeeper-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

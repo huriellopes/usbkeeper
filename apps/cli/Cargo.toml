@@ -1,0 +1,15 @@
+[package]
+name = "usbkeeper"
+description = "Gerenciador de pendrives e HDs externos: listar, formatar, saúde, detecção de falsificados"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+usbkeeper-core.workspace = true
+serde_json.workspace = true
+clap.workspace = true
+anyhow.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+usbkeeper-linux.workspace = true
