@@ -5,12 +5,19 @@
   --ok: #1f7a4d; --ok-bg: #e3f4ea; --warn: #8a5a00; --warn-bg: #fcf0d6; --bad: #b42318; --bad-bg: #fde7e4;
   color-scheme: light dark;
 }
+/* Escuro: escolhido no seletor, ou "Sistema" com o sistema em escuro. */
+:root[data-theme="dark"] {
+  --bg: #131312; --panel: #1c1c1a; --fg: #ecebe6; --muted: #9c9b95; --line: #2d2d2a; --accent: #6b9bff;
+  --ok: #6fd39b; --ok-bg: #16301f; --warn: #f2c46b; --warn-bg: #33280f; --bad: #ff8a7a; --bad-bg: #3a1a16;
+  color-scheme: dark;
+}
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #131312; --panel: #1c1c1a; --fg: #ecebe6; --muted: #9c9b95; --line: #2d2d2a; --accent: #6b9bff;
     --ok: #6fd39b; --ok-bg: #16301f; --warn: #f2c46b; --warn-bg: #33280f; --bad: #ff8a7a; --bad-bg: #3a1a16;
   }
 }
+:root[data-theme="light"] { color-scheme: light; }
 html, body, #root { height: 100%; margin: 0; }
 body { background: var(--bg); color: var(--fg); font: 14px/1.45 system-ui, "Segoe UI", sans-serif; }
 select, input { background: var(--bg); color: var(--fg); border: 1px solid var(--line); }
