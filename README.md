@@ -3,13 +3,23 @@
 Gerenciador multiplataforma de pendrives e HDs externos: listar, formatar, verificar saúde,
 detectar pendrives **falsificados** (capacidade adulterada) e medir velocidade, com histórico por número de série.
 
-> Status: **M6c**: CLI e **interface gráfica** no Linux, com **guia de ajuda**, **assistente de formatação**,
-> **verificar/reparar**, **montar**, **autoteste SMART**, **apagar com segurança**, **imagem do disco**, **gravar ISO** e tema claro/escuro: listar, formatar, ejetar, **detectar falsificados**,
-> velocidade, **saúde (SMART + varredura)**, **histórico** e **laudo HTML**. Windows e macOS chegam nas próximas etapas (ver [Roadmap](#roadmap)).
+> Status: **Linux completo** (CLI e janela): listar, formatar, ejetar, **detectar falsificados**, velocidade,
+> **saúde (SMART + varredura)**, **verificar/reparar**, **montar**, **autoteste SMART**, **apagar com segurança**,
+> **imagem do disco**, **gravar ISO**, **guia de ajuda**, **assistente de formatação**, histórico, laudo HTML e
+> tema claro/escuro. **Windows em andamento** (CLI de consulta); macOS depois (ver [Roadmap](#roadmap)).
 
-## Instalar (Debian/Ubuntu/Mint)
+## Instalar
 
-Pelo repositório APT (atualiza junto com o sistema no `sudo apt upgrade`):
+| Sistema | Situação | Como instalar |
+|---|---|---|
+| **Linux** (Debian, Ubuntu, Mint) | completo: CLI + janela | repositório APT (abaixo) |
+| **Windows** 10/11 | em andamento: CLI de consulta (listar, info, saúde, velocidade de leitura) | compilar com `cargo` (abaixo); instalador `.msi` na próxima versão |
+| **macOS** | ainda não suportado | previsto no [Roadmap](#roadmap) |
+| **WSL2** | via Linux, com o pendrive repassado pelo `usbipd` | ver [WSL2](#wsl2) |
+
+### Linux (Debian, Ubuntu, Mint)
+
+Pelo repositório APT, que atualiza junto com o sistema no `sudo apt upgrade`:
 
 ```sh
 sudo install -d -m 0755 /etc/apt/keyrings
@@ -19,26 +29,64 @@ echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/usbkeeper.gpg] https://huriell
 sudo apt update && sudo apt install usbkeeper
 ```
 
-Requer amd64 com Ubuntu 24.04+, Mint 22+ ou Debian 13+. Impressão digital da chave:
-`70E1 1B52 B3A3 FBB9 C0EE A95F 4695 DA6D E72E 8FAF`. O `.deb` avulso (com `.sha256`) também
-está em cada [release](https://github.com/huriellopes/usbkeeper/releases).
+Instala a CLI (`usbkeeper`) e a janela (menu de aplicativos → usbkeeper). Requer amd64 com
+Ubuntu 24.04+, Mint 22+ ou Debian 13+. Impressão digital da chave:
+`70E1 1B52 B3A3 FBB9 C0EE A95F 4695 DA6D E72E 8FAF`.
 
-## Windows (em andamento)
-
-Na versão de desenvolvimento, no Windows já funcionam `list`, `info`, `health` (SMART e
-varredura só leitura), `bench` (leitura), `history`, `report`, `recomendar` e `guia`.
-O disco aceita várias formas de nome: `usbkeeper info E:`, `info 1` ou `info PhysicalDrive1`.
-Ler o disco exige um **terminal como administrador** (ou `sudo usbkeeper …` no Windows 11 24H2+).
-Para o SMART, instale o smartmontools: `winget install smartmontools.smartmontools`.
-Formatar, apagar, imagem/ISO, reparar, montar e remover chegam na próxima etapa, e a janela e o
-instalador `.msi` depois dela.
-
-## Interface gráfica
+Sem o repositório: baixe o `.deb` e o `.sha256` de um [release](https://github.com/huriellopes/usbkeeper/releases) e
 
 ```sh
-cd apps/gui && npm ci && npx tauri build      # gera target/release/bundle/deb/usbkeeper_<versão>_amd64.deb
-sudo apt install ./target/release/bundle/deb/usbkeeper_*_amd64.deb
+sha256sum -c usbkeeper_*_amd64.deb.sha256
+sudo apt install ./usbkeeper_*_amd64.deb
 ```
+
+Remover: `sudo apt remove usbkeeper` (o histórico em `~/.local/share/usbkeeper` fica).
+
+### Windows 10/11 (em andamento)
+
+Nesta etapa só a **CLI de consulta** funciona: `list`, `info`, `health` (SMART e varredura de
+leitura), `bench` (leitura), `history`, `report`, `recomendar` e `guia`. Formatar, apagar,
+imagem/ISO, reparar, montar e remover chegam na próxima etapa; a janela e o instalador `.msi`, depois.
+
+Compilar e instalar (PowerShell):
+
+```powershell
+winget install Rustlang.Rustup
+winget install Microsoft.VisualStudio.2022.BuildTools --override "--quiet --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+# feche e abra o terminal, depois:
+cargo install --git https://github.com/huriellopes/usbkeeper --locked usbkeeper
+winget install smartmontools.smartmontools      # opcional: SMART de HD/SSD
+```
+
+Use num **terminal como administrador** (ler o disco exige), ou `sudo usbkeeper …` no
+Windows 11 24H2+ com o sudo ativado. O disco aceita várias formas de nome:
+
+```powershell
+usbkeeper list
+usbkeeper info E:              # pela letra; também: info 1, info PhysicalDrive1
+usbkeeper health E: --scan     # SMART + leitura de toda a superfície
+```
+
+O disco do sistema (C:) nunca é aceito como alvo. Histórico em `%LOCALAPPDATA%\usbkeeper`.
+Remover: `cargo uninstall usbkeeper`.
+
+### macOS
+
+Ainda não suportado: compila, mas responde que a plataforma não é suportada. Está no
+[Roadmap](#roadmap), depois do Windows.
+
+### Compilar do código (Linux)
+
+```sh
+cargo install --git https://github.com/huriellopes/usbkeeper --locked usbkeeper   # só a CLI
+# CLI + janela (.deb): precisa de Node 22 e das libs do WebKitGTK
+sudo apt install libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev
+git clone https://github.com/huriellopes/usbkeeper && cd usbkeeper/apps/gui
+npm ci && npx tauri build      # gera target/release/bundle/deb/usbkeeper_<versão>_amd64.deb
+sudo apt install ../../target/release/bundle/deb/usbkeeper_*_amd64.deb
+```
+
+## Interface gráfica (Linux)
 
 A janela lista os discos ao vivo (USB primeiro; o disco do sistema aparece com 🔒 e sem ações
 destrutivas) e tem abas para **Verificar** (fake-check), **Saúde**, **Velocidade**, **Formatar** e
@@ -55,10 +103,11 @@ libera alvos não-USB; `USBKEEPER_CLI=…` escolhe a CLI usada. Orçamento: `scr
 
 ## Guia de ajuda
 
-Doze tópicos explicados em português, iguais na CLI e na janela: primeiros passos, tipos de
+Quinze tópicos explicados em português, iguais na CLI e na janela: primeiros passos, tipos de
 dispositivo, USB e velocidade, **MBR × GPT**, **sistemas de arquivos** (FAT32, exFAT, NTFS, ext4),
 o que formatar faz, **pendrives falsificados**, **saúde/SMART**, velocidade, **remoção segura**,
-o que o usbkeeper protege e glossário.
+**reparar**, **apagar com segurança**, **imagem do disco e ISO de boot**, o que o usbkeeper
+protege e glossário.
 
 ```sh
 usbkeeper guia              # lista os tópicos
