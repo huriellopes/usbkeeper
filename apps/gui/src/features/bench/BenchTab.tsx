@@ -2,6 +2,8 @@ import type { DeviceView } from "../../lib/bindings/DeviceView";
 import type { BenchResult } from "../../lib/bindings/BenchResult";
 import { ConfirmDialog } from "../ops/ConfirmDialog";
 import { useOperation } from "../ops/useOperation";
+import { GUIDE } from "../../lib/guideLinks";
+import { HelpButton } from "../help/HelpButton";
 
 const btn = { border: "1px solid var(--line)" };
 
@@ -38,6 +40,7 @@ export function BenchTab({ view }: { view: DeviceView }) {
         >
           Medir leitura e escrita
         </button>
+        <HelpButton topic={GUIDE.speed} label="velocidade" />
       </div>
       {op.error && <p style={{ color: "var(--bad)" }}>{op.error}</p>}
       {last && !last.ok && <p style={{ color: "var(--bad)" }}>Falhou: {last.error}</p>}

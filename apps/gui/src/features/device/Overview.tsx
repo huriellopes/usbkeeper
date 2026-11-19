@@ -4,6 +4,8 @@ import type { Holder } from "../../lib/bindings/Holder";
 import type { Refusal } from "../../lib/bindings/Refusal";
 import { deviceHolders } from "../../lib/api";
 import { humanBytes } from "../../lib/format";
+import { GUIDE } from "../../lib/guideLinks";
+import { HelpButton } from "../help/HelpButton";
 
 export function refusalText(r: Refusal): string {
   switch (r.kind) {
@@ -71,7 +73,10 @@ export function Overview({ view }: { view: DeviceView }) {
         </section>
       )}
       <section>
-        <h3 className="mb-1 font-semibold">Operações destrutivas</h3>
+        <h3 className="mb-1 font-semibold">
+          Operações destrutivas
+          <HelpButton topic={GUIDE.protections} label="o que o usbkeeper protege" />
+        </h3>
         {view.refusals.length === 0 ? (
           <p className="text-sm">
             Pode ser alvo. A confirmação pedirá: <code>{view.confirmation_token}</code>

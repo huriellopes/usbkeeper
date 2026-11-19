@@ -3,6 +3,8 @@ import type { HealthReport } from "../../lib/bindings/HealthReport";
 import type { ScanReport } from "../../lib/bindings/ScanReport";
 import { humanBytes, verdictLabel, verdictTone } from "../../lib/format";
 import { useOperation } from "../ops/useOperation";
+import { GUIDE } from "../../lib/guideLinks";
+import { HelpButton } from "../help/HelpButton";
 
 const btn = { border: "1px solid var(--line)" };
 
@@ -20,6 +22,7 @@ export function HealthTab({ view }: { view: DeviceView }) {
         <button type="button" disabled={!!op.running} onClick={() => op.run({ kind: "health", device: view.device.path, scan: true })} className="rounded-md px-3 py-1 disabled:opacity-40" style={btn}>
           SMART + varrer superfície
         </button>
+        <HelpButton topic={GUIDE.health} label="saúde e SMART" />
       </div>
       <p className="text-sm" style={{ color: "var(--muted)" }}>Somente leitura: nada é gravado no disco.</p>
       {op.error && <p style={{ color: "var(--bad)" }}>{op.error}</p>}

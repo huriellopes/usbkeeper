@@ -12,6 +12,8 @@ import { ConfirmDialog } from "../ops/ConfirmDialog";
 import { OperationBar } from "../ops/OperationBar";
 import { useOperation } from "../ops/useOperation";
 import { Overview } from "./Overview";
+import { InUseCard } from "../remove/InUseCard";
+import { RemoveButton } from "../remove/RemoveButton";
 
 export type TabId = "overview" | "check" | "health" | "bench" | "format" | "history";
 export const TABS: { id: TabId; label: string; destructive: boolean }[] = [
@@ -53,17 +55,7 @@ export function DevicePanel({ view }: { view: DeviceView }) {
           </div>
           {!view.is_system && d.transport === "usb" && (
             <div className="flex flex-col items-end gap-1">
-              <button
-                type="button"
-                disabled={!!op}
-                onClick={() => ejectOp.run({ kind: "eject", device: d.path })}
-                className="rounded-md px-3 py-1 text-sm disabled:opacity-40"
-                style={{ border: "1px solid var(--line)" }}
-              >
-                Ejetar
-              </button>
-              {ejected?.ok && <span className="text-sm" style={{ color: "var(--ok)" }}>Pode remover com segurança.</span>}
-              {ejected && !ejected.ok && <span className="max-w-xs whitespace-pre-wrap text-sm" style={{ color: "var(--bad)" }}>{ejected.error}</span>}
+              <RemoveButton view={view} />
               {ejectOp.error && <span className="text-sm" style={{ color: "var(--bad)" }}>{ejectOp.error}</span>}
             </div>
           )}
@@ -85,6 +77,15 @@ export function DevicePanel({ view }: { view: DeviceView }) {
           ))}
         </nav>
       </header>
+      {ejected && !ejected.ok && !op && (
+        <div className="px-6 pt-4">
+          <InUseCard
+            error={ejected.error ?? "não foi possível remover"}
+            holders={ejected.holders}
+            onRetry={() => ejectOp.run({ kind: "eject", device: d.path })}
+          />
+        </div>
+      )}
       {op && (
         <OperationBar
           op={op}

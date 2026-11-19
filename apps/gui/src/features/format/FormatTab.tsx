@@ -2,6 +2,8 @@ import { useState } from "react";
 import type { DeviceView } from "../../lib/bindings/DeviceView";
 import type { OpRequest } from "../../lib/bindings/OpRequest";
 import { FS, type Fs, validateLabel } from "../../lib/label";
+import { GUIDE } from "../../lib/guideLinks";
+import { HelpButton } from "../help/HelpButton";
 
 type Props = { view: DeviceView; initialMaxBytes?: number; onSubmit: (req: OpRequest) => void; busy: boolean };
 
@@ -29,22 +31,28 @@ export function FormatTab({ view, initialMaxBytes, onSubmit, busy }: Props) {
         });
       }}
     >
-      <label className="flex flex-col text-sm">
-        Sistema de arquivos
+      <div className="flex flex-col text-sm">
+        <span>
+          Sistema de arquivos
+          <HelpButton topic={GUIDE.filesystems} label="sistema de arquivos" />
+        </span>
         <select aria-label="Sistema de arquivos" value={fs} onChange={(e) => setFs(e.target.value as Fs)} className="mt-1 rounded-md px-2 py-1">
           {FS.map((f) => (
             <option key={f.id} value={f.id}>{f.id}</option>
           ))}
         </select>
         <span className="mt-1" style={{ color: "var(--muted)" }}>{FS.find((f) => f.id === fs)!.hint}</span>
-      </label>
+      </div>
       <label className="flex flex-col text-sm">
         Rótulo
         <input aria-label="Rótulo" value={label} onChange={(e) => setLabel(e.target.value)} className="mt-1 rounded-md px-2 py-1" />
         {check.error && <span className="mt-1" style={{ color: "var(--bad)" }}>{check.error}</span>}
       </label>
-      <label className="flex flex-col text-sm">
-        Tabela
+      <div className="flex flex-col text-sm">
+        <span>
+          Tabela
+          <HelpButton topic={GUIDE.partitionTable} label="tabela" />
+        </span>
         <select aria-label="Tabela" value={limited ? "mbr" : table} disabled={limited} onChange={(e) => setTable(e.target.value as typeof table)} className="mt-1 rounded-md px-2 py-1">
           <option value="auto">automática (MBR até 2 TiB)</option>
           <option value="mbr">MBR</option>
@@ -53,12 +61,19 @@ export function FormatTab({ view, initialMaxBytes, onSubmit, busy }: Props) {
         {limited && (
           <span className="mt-1" style={{ color: "var(--muted)" }}>Com limite de tamanho, só MBR é seguro num pendrive falsificado.</span>
         )}
-      </label>
-      <label className="flex flex-col text-sm">
-        Usar só os primeiros (MB, opcional)
+      </div>
+      <div className="flex flex-col text-sm">
+        <span>
+          Usar só os primeiros (MB, opcional)
+          <HelpButton topic={GUIDE.fake} label="usar só os primeiros" />
+        </span>
         <input aria-label="Usar só os primeiros (MB)" inputMode="numeric" value={limitMb} onChange={(e) => setLimitMb(e.target.value)} className="mt-1 rounded-md px-2 py-1" />
         {invalidLimit && <span className="mt-1" style={{ color: "var(--bad)" }}>Informe um número de MB.</span>}
-      </label>
+      </div>
+      <p className="text-sm" style={{ color: "var(--muted)" }}>
+        Antes de formatar, leia o que acontece com os dados
+        <HelpButton topic={GUIDE.format} label="o que formatar faz" />
+      </p>
       <button
         type="submit"
         disabled={busy || !!check.error || invalidLimit || view.refusals.some((r) => r.kind === "system_disk")}

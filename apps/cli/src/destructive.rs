@@ -57,7 +57,9 @@ pub fn precheck(device: &Device, guard: &Guard) -> Result<()> {
         .iter()
         .any(|r| matches!(r, Refusal::Mounted { .. }))
     {
-        msg.push_str("\n(use --unmount para desmontar automaticamente)");
+        msg.push_str(
+            "\n(use --unmount para desmontar automaticamente; veja: usbkeeper guia remover)",
+        );
     }
     bail!(msg)
 }
@@ -191,7 +193,7 @@ fn print_plan(device: &Device, request: &FormatRequest) {
 pub fn format(b: &Backend, args: FormatArgs) -> Result<()> {
     let device = b.enumerator.get(&args.device)?;
     let label = normalize_label(args.filesystem, args.label.as_deref().unwrap_or(""))
-        .map_err(anyhow::Error::msg)?;
+        .map_err(|e| anyhow::anyhow!("{e} (veja: usbkeeper guia sistemas-de-arquivos)"))?;
     let table =
         resolve_table(args.table, device.size_bytes, args.max_bytes).map_err(anyhow::Error::msg)?;
     let request = FormatRequest {
@@ -257,23 +259,43 @@ pub fn format(b: &Backend, args: FormatArgs) -> Result<()> {
     Ok(())
 }
 
+/// Disco em uso: a mensagem para pessoas e os processos estruturados (a
+/// interface mostra a lista; com `--progress-json` ela vai no erro JSON).
+#[derive(Debug)]
+pub struct BusyError {
+    pub message: String,
+    pub holders: Vec<usbkeeper_core::Holder>,
+}
+
+impl std::fmt::Display for BusyError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+
+impl std::error::Error for BusyError {}
+
 fn busy_error(e: CoreError) -> anyhow::Error {
     if let CoreError::Busy {
         mountpoint,
         holders,
-    } = &e
-        && !holders.is_empty()
+    } = e
     {
-        // Os processos vão na própria mensagem: no modo --json o stdout é
-        // só do resultado, e a interface gráfica mostra o texto do erro.
         let list = holders
             .iter()
             .map(|h| format!("  PID {} {} ({})", h.pid, h.command, h.path))
             .collect::<Vec<_>>()
             .join("\n");
-        return anyhow::anyhow!(
-            "{mountpoint} está em uso por:\n{list}\nfeche esses programas e tente de novo"
-        );
+        let message = if holders.is_empty() {
+            format!(
+                "{mountpoint} está em uso por um processo que não consigo ver (talvez de outro usuário)\nveja: usbkeeper guia remover"
+            )
+        } else {
+            format!(
+                "{mountpoint} está em uso por:\n{list}\nfeche esses programas e tente de novo (veja: usbkeeper guia remover)"
+            )
+        };
+        return anyhow::Error::new(BusyError { message, holders });
     }
     e.into()
 }
@@ -301,16 +323,26 @@ pub fn eject(
         );
         b.mounts.unmount_all(&device).map_err(busy_error)?;
     }
-    if power_off {
-        b.ejector.power_off(&device)?;
+    let mut note: Option<String> = None;
+    if power_off && let Err(e) = b.ejector.power_off(&device) {
+        // Desmontou, mas o desligamento não é suportado (ex.: alguns leitores
+        // de cartão): as gravações terminaram, é seguro tirar quando o LED parar.
+        note = Some(e.to_string());
     }
+    let powered_off = power_off && note.is_none();
     if json {
         crate::print_json(&serde_json::json!({
             "device": device.path,
-            "powered_off": power_off,
+            "powered_off": powered_off,
+            "note": note,
         }))?;
-    } else if power_off {
+    } else if powered_off {
         println!("✔ {} desligado. Pode remover com segurança.", device.path);
+    } else if let Some(n) = note {
+        println!(
+            "✔ {} desmontado (não deu para desligar: {n}).\n  Pode tirar quando o LED parar de piscar.",
+            device.path
+        );
     } else {
         println!("✔ {} desmontado.", device.path);
     }

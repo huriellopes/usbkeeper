@@ -17,3 +17,20 @@ select, input { background: var(--bg); color: var(--fg); border: 1px solid var(-
 .badge { display: inline-block; padding: 0 8px; border-radius: 999px; font-size: 12px; font-weight: 600; }
 .tone-ok { color: var(--ok); background: var(--ok-bg); } .tone-warn { color: var(--warn); background: var(--warn-bg); }
 .tone-bad { color: var(--bad); background: var(--bad-bg); } .tone-muted { color: var(--muted); background: var(--line); }
+
+/* Guia de ajuda (HTML gerado de crates/guide) */
+.guide { max-width: 860px; line-height: 1.6; }
+.guide h1 { font-size: 1.6rem; font-weight: 700; margin: 0 0 .5rem; }
+.guide h2 { font-size: 1.15rem; font-weight: 650; margin: 1.6rem 0 .5rem; }
+.guide h3 { font-weight: 600; margin: 1.2rem 0 .4rem; }
+.guide p, .guide ul, .guide ol, .guide table, .guide dl { margin: 0 0 .8rem; }
+.guide ul { list-style: disc; padding-left: 1.4rem; }
+.guide ol { list-style: decimal; padding-left: 1.4rem; }
+.guide li { margin: .15rem 0; }
+.guide code { font-family: ui-monospace, monospace; background: var(--line); padding: 0 .3rem; border-radius: 4px; }
+.guide table { border-collapse: collapse; width: 100%; font-size: .92rem; }
+.guide th, .guide td { border: 1px solid var(--line); padding: .35rem .55rem; text-align: left; vertical-align: top; }
+.guide th { background: var(--bg); }
+.guide strong { font-weight: 650; }
+.guide dt { font-weight: 650; margin-top: .6rem; }
+.guide dd { margin: 0 0 0 1.2rem; }

@@ -41,6 +41,8 @@ pub struct OpFinished {
     #[ts(type = "any")]
     pub result: Option<serde_json::Value>,
     pub error: Option<String>,
+    /// Processos que prendiam o disco, quando a falha foi "em uso".
+    pub holders: Vec<usbkeeper_core::Holder>,
 }
 
 /// CLI usada: USBKEEPER_CLI, depois `usbkeeper` ao lado do executável da GUI
@@ -105,6 +107,7 @@ pub fn start_operation(
             out
         });
         let mut last_error: Option<String> = None;
+        let mut last_holders: Vec<usbkeeper_core::Holder> = Vec::new();
         for line in BufReader::new(stderr).lines().map_while(Result::ok) {
             match cli::parse_line(&line) {
                 StreamLine::Progress(progress) => {
@@ -117,7 +120,10 @@ pub fn start_operation(
                         },
                     );
                 }
-                StreamLine::Error(e) => last_error = Some(e),
+                StreamLine::Error { message, holders } => {
+                    last_error = Some(message);
+                    last_holders = holders;
+                }
                 StreamLine::Log(_) => {}
             }
         }
@@ -138,6 +144,7 @@ pub fn start_operation(
                 ok: error.is_none(),
                 result: serde_json::from_str(out.trim()).ok(),
                 error,
+                holders: last_holders,
             },
         );
     });

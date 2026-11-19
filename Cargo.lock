@@ -2670,6 +2670,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "pulldown-cmark"
+version = "0.13.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3db2be46835f013dd3f4fa7f5f7402c537787b54ebb6fe2b94bbdd7e2669bb7b"
+dependencies = [
+ "bitflags 2.13.2",
+ "memchr",
+ "pulldown-cmark-escape",
+ "unicase",
+]
+
+[[package]]
+name = "pulldown-cmark-escape"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "007d8adb5ddab6f8e3f491ac63566a7d5002cc7ed73901f72057943fa71ae1ae"
+
+[[package]]
 name = "quick-xml"
 version = "0.42.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4131,6 +4149,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6f5e870be6c3b371b77fe0ee0bafb859fa4964b4404c27de1d380043c4dda20"
 
 [[package]]
+name = "unicase"
+version = "2.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "357cc3acc6a036009fd6c973ed009037c732d60d0b4f6c673e9041497482a28f"
+
+[[package]]
 name = "unicode-ident"
 version = "1.0.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4169,7 +4193,7 @@ dependencies = [
 
 [[package]]
 name = "usbkeeper"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "anyhow",
  "clap",
@@ -4177,6 +4201,7 @@ dependencies = [
  "serde",
  "serde_json",
  "usbkeeper-core",
+ "usbkeeper-guide",
  "usbkeeper-history",
  "usbkeeper-linux",
  "usbkeeper-smart",
@@ -4184,7 +4209,7 @@ dependencies = [
 
 [[package]]
 name = "usbkeeper-core"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "serde",
  "thiserror 2.0.21",
@@ -4193,7 +4218,7 @@ dependencies = [
 
 [[package]]
 name = "usbkeeper-gui"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -4202,14 +4227,22 @@ dependencies = [
  "tauri-plugin-dialog",
  "ts-rs",
  "usbkeeper-core",
+ "usbkeeper-guide",
  "usbkeeper-history",
  "usbkeeper-linux",
  "usbkeeper-smart",
 ]
 
 [[package]]
+name = "usbkeeper-guide"
+version = "0.5.1"
+dependencies = [
+ "pulldown-cmark",
+]
+
+[[package]]
 name = "usbkeeper-history"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "rusqlite",
  "serde",
@@ -4220,7 +4253,7 @@ dependencies = [
 
 [[package]]
 name = "usbkeeper-linux"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "libc",
  "serde",
@@ -4231,7 +4264,7 @@ dependencies = [
 
 [[package]]
 name = "usbkeeper-smart"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "serde",
  "serde_json",

@@ -1,5 +1,6 @@
 pub mod cli;
 pub mod devices;
+pub mod guide;
 pub mod ops;
 
 pub fn run() {
@@ -12,6 +13,7 @@ pub fn run() {
             devices::usb_hint,
             devices::device_holders,
             devices::history_events,
+            guide::guide_topics,
             ops::start_operation,
             ops::cancel_operation,
             ops::save_report,

@@ -127,7 +127,13 @@ pub fn args(req: &OpRequest, token: &str, allow_non_usb: bool) -> Vec<String> {
             confirm(&mut a);
         }
         OpRequest::Eject { device } => {
-            a.extend(["eject".into(), device.clone(), "--json".into()]);
+            // --progress-json: erro em JSON com os processos que prendem o disco.
+            a.extend([
+                "eject".into(),
+                device.clone(),
+                "--json".into(),
+                "--progress-json".into(),
+            ]);
             return a;
         }
     }
@@ -145,8 +151,19 @@ pub fn args(req: &OpRequest, token: &str, allow_non_usb: bool) -> Vec<String> {
 #[derive(Debug, Clone, PartialEq)]
 pub enum StreamLine {
     Progress(OpProgress),
-    Error(String),
+    Error {
+        message: String,
+        holders: Vec<usbkeeper_core::Holder>,
+    },
     Log(String),
+}
+
+/// `Holder` do core só deriva Serialize; este é o espelho para ler o JSON.
+#[derive(Deserialize)]
+struct HolderIn {
+    pid: u32,
+    command: String,
+    path: String,
 }
 
 pub fn parse_line(line: &str) -> StreamLine {
@@ -158,7 +175,21 @@ pub fn parse_line(line: &str) -> StreamLine {
         if let Ok(v) = serde_json::from_str::<serde_json::Value>(t)
             && let Some(e) = v.get("error").and_then(|e| e.as_str())
         {
-            return StreamLine::Error(e.to_string());
+            let holders = v
+                .get("holders")
+                .and_then(|h| serde_json::from_value::<Vec<HolderIn>>(h.clone()).ok())
+                .unwrap_or_default()
+                .into_iter()
+                .map(|h| usbkeeper_core::Holder {
+                    pid: h.pid,
+                    command: h.command,
+                    path: h.path,
+                })
+                .collect();
+            return StreamLine::Error {
+                message: e.to_string(),
+                holders,
+            };
         }
     }
     StreamLine::Log(t.to_string())
@@ -267,7 +298,7 @@ mod tests {
     }
 
     #[test]
-    fn eject_has_no_cancel_stdin() {
+    fn eject_asks_for_json_errors() {
         let a = args(
             &OpRequest::Eject {
                 device: "/dev/sdb".into(),
@@ -275,7 +306,21 @@ mod tests {
             "ABC",
             false,
         );
-        assert_eq!(a, s(&["eject", "/dev/sdb", "--json"]));
+        assert_eq!(a, s(&["eject", "/dev/sdb", "--json", "--progress-json"]));
+    }
+
+    #[test]
+    fn error_line_keeps_holders() {
+        match parse_line(
+            r#"{"error":"em uso","holders":[{"pid":7,"command":"vlc","path":"/m/x"}]}"#,
+        ) {
+            StreamLine::Error { message, holders } => {
+                assert_eq!(message, "em uso");
+                assert_eq!(holders[0].pid, 7);
+                assert_eq!(holders[0].command, "vlc");
+            }
+            other => panic!("{other:?}"),
+        }
     }
 
     #[test]
@@ -287,7 +332,7 @@ mod tests {
             other => panic!("{other:?}"),
         }
         assert!(
-            matches!(parse_line(r#"{"error":"cancelado"}"#), StreamLine::Error(e) if e == "cancelado")
+            matches!(parse_line(r#"{"error":"cancelado"}"#), StreamLine::Error { message, holders } if message == "cancelado" && holders.is_empty())
         );
         assert!(matches!(parse_line("Desmontando..."), StreamLine::Log(_)));
         assert!(matches!(parse_line("{quebrado"), StreamLine::Log(_)));

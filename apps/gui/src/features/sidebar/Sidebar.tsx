@@ -1,5 +1,6 @@
 import type { DeviceView } from "../../lib/bindings/DeviceView";
 import { humanBytes, verdictLabel, verdictTone } from "../../lib/format";
+import { RemoveButton } from "../remove/RemoveButton";
 
 type Props = { devices: DeviceView[]; selected: string | null; onSelect: (path: string) => void; hint?: string | null };
 
@@ -20,12 +21,12 @@ export function Sidebar({ devices, selected, onSelect, hint }: Props) {
         const slow =
           !!d.usb?.usb_version && Number.parseFloat(d.usb.usb_version) >= 3 && ["low", "full", "high"].includes(d.usb.speed);
         return (
-          <li key={d.path}>
+          <li key={d.path} className="flex items-start gap-1">
             <button
               type="button"
               onClick={() => onSelect(d.path)}
               aria-current={active}
-              className="w-full rounded-lg px-3 py-2 text-left"
+              className="min-w-0 flex-1 rounded-lg px-3 py-2 text-left"
               style={{
                 background: active ? "var(--panel)" : "transparent",
                 opacity: v.is_system ? 0.6 : 1,
@@ -50,6 +51,11 @@ export function Sidebar({ devices, selected, onSelect, hint }: Props) {
                 )}
               </div>
             </button>
+            {!v.is_system && d.transport === "usb" && (
+              <div className="pt-2">
+                <RemoveButton view={v} compact />
+              </div>
+            )}
           </li>
         );
       })}

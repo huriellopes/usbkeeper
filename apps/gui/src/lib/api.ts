@@ -6,6 +6,7 @@ import { listen } from "@tauri-apps/api/event";
 import type { OpRequest } from "./bindings/OpRequest";
 import type { OpEvent } from "./bindings/OpEvent";
 import type { OpFinished } from "./bindings/OpFinished";
+import type { GuideTopic } from "./bindings/GuideTopic";
 
 export const listDevices = () => invoke<DeviceView[]>("list_devices");
 export const usbHint = () => invoke<string | null>("usb_hint");
@@ -18,3 +19,4 @@ export const cancelOperation = (device: string) => invoke<void>("cancel_operatio
 export const onOpProgress = (cb: (e: OpEvent) => void) => listen<OpEvent>("op-progress", (e) => cb(e.payload));
 export const onOpFinished = (cb: (e: OpFinished) => void) => listen<OpFinished>("op-finished", (e) => cb(e.payload));
 export const saveReport = (key: string, path: string) => invoke<void>("save_report", { key, path });
+export const guideTopics = () => invoke<GuideTopic[]>("guide_topics");

@@ -14,19 +14,19 @@ vi.mock("../../lib/api", () => ({
 const tab = (name: string) => screen.getByRole("tab", { name }) as HTMLButtonElement;
 
 describe("DevicePanel", () => {
-  it("disco do sistema: sem Verificar/Formatar e sem Ejetar", () => {
+  it("disco do sistema: sem Verificar/Formatar e sem Remover", () => {
     render(<DevicePanel view={view({ is_system: true, refusals: [{ kind: "system_disk", mountpoint: "/" }] })} />);
     expect(tab("Verificar").disabled).toBe(true);
     expect(tab("Formatar").disabled).toBe(true);
     expect(tab("Saúde").disabled).toBe(false);
-    expect(screen.queryByRole("button", { name: "Ejetar" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Remover com segurança/ })).toBeNull();
   });
 
-  it("pendrive: todas as abas e Ejetar disponíveis", () => {
+  it("pendrive: todas as abas e Remover com segurança disponíveis", () => {
     render(<DevicePanel view={view()} />);
     for (const name of ["Visão geral", "Verificar", "Saúde", "Velocidade", "Formatar", "Histórico"]) {
       expect(tab(name).disabled).toBe(false);
     }
-    expect(screen.getByRole("button", { name: "Ejetar" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Remover com segurança/ })).toBeTruthy();
   });
 });

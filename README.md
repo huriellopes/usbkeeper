@@ -3,7 +3,7 @@
 Gerenciador multiplataforma de pendrives e HDs externos: listar, formatar, verificar saúde,
 detectar pendrives **falsificados** (capacidade adulterada) e medir velocidade, com histórico por número de série.
 
-> Status: **M5**: CLI e **interface gráfica** no Linux: listar, formatar, ejetar, **detectar falsificados**,
+> Status: **M5b**: CLI e **interface gráfica** no Linux, com **guia de ajuda**: listar, formatar, ejetar, **detectar falsificados**,
 > velocidade, **saúde (SMART + varredura)**, **histórico** e **laudo HTML**. Windows e macOS chegam nas próximas etapas (ver [Roadmap](#roadmap)).
 
 ## Interface gráfica
@@ -25,6 +25,29 @@ destrutiva exige digitar a série, como na CLI, e a CLI confere tudo de novo.
 Desenvolvimento: `cd apps/gui && npx tauri dev`. `USBKEEPER_SHOW_VIRTUAL=1` lista loop devices e
 libera alvos não-USB; `USBKEEPER_CLI=…` escolhe a CLI usada. Orçamento: `scripts/measure-gui.sh`
 (< 250 MB de PSS, < 1% de CPU parado).
+
+## Guia de ajuda
+
+Doze tópicos explicados em português, iguais na CLI e na janela: primeiros passos, tipos de
+dispositivo, USB e velocidade, **MBR × GPT**, **sistemas de arquivos** (FAT32, exFAT, NTFS, ext4),
+o que formatar faz, **pendrives falsificados**, **saúde/SMART**, velocidade, **remoção segura**,
+o que o usbkeeper protege e glossário.
+
+```sh
+usbkeeper guia              # lista os tópicos
+usbkeeper guia mbr          # aceita apelidos: gpt, exfat, fat32, smart, fake, eject…
+```
+
+Na janela: **? Ajuda e guia** na barra lateral (com busca) e botões **?** ao lado de cada decisão
+(sistema de arquivos, tabela, teste rápido × completo, SMART…). O conteúdo fica em
+`crates/guide/topics/*.md`.
+
+## Remover com segurança
+
+`usbkeeper remover sdb` (ou o botão **⏏ Remover com segurança**) termina as gravações pendentes,
+desmonta e desliga o dispositivo. Se algum programa estiver usando o disco, mostra **qual** (PID,
+nome e arquivo aberto) para você fechar e tentar de novo. Se o dispositivo não aceitar ser
+desligado (alguns leitores de cartão), ele é desmontado e o aviso diz para tirar quando o LED parar.
 
 ## Uso da linha de comando
 
@@ -140,6 +163,7 @@ O WSL2 não enxerga USB do Windows. Use [usbipd-win](https://github.com/dorssel/
 | `crates/platform-linux` | `lsblk -J -b` + sysfs (velocidade USB), formatação (wipefs/sfdisk/mkfs), desmontagem via udisks, processos que prendem o disco (`/proc`), `RawDevice` (O_DIRECT/O_EXCL), WSL |
 | `crates/smart` | `smartctl -j`: detecção da ponte USB, interpretação ATA/NVMe, veredito |
 | `crates/history` | SQLite (rusqlite *bundled*): dispositivos e eventos |
+| `crates/guide` | Guia em Markdown embutido; HTML para a janela e texto para o terminal |
 | `apps/cli` | Binário `usbkeeper` (clap): comandos, barra de progresso, laudo HTML; `--progress-json`/`--cancel-stdin` para a interface |
 | `apps/gui` | Interface Tauri 2 (React + TS): lê discos/histórico como usuário, opera via `pkexec usbkeeper` |
 
@@ -152,6 +176,7 @@ O WSL2 não enxerga USB do Windows. Use [usbipd-win](https://github.com/dorssel/
 - [x] **M3**: `health` (SMART via smartctl + varredura), histórico SQLite, laudo HTML/PDF
 - [ ] **M4**: Windows
 - [x] **M5**: GUI Tauri 2
+- [x] **M5b**: guia de ajuda (CLI e janela) e remoção segura em destaque
 - [ ] **M6**: macOS, gravador de ISO, imagem de disco
 
 ## Licença
