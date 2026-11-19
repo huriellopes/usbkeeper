@@ -1,21 +1,141 @@
-{"system_drive":"C:",
- "disks":[
-  {"Number":0,"FriendlyName":"WDC WDS500G2B0C-00PXH0","Model":"WDC WDS500G2B0C-00PXH0","Manufacturer":null,"SerialNumber":"E823_8FA6_BF53_0001_001B_448B_4A1C_7E33.","Size":500107862016,"BusType":"NVMe","PartitionStyle":"GPT","IsReadOnly":false,"IsSystem":true,"IsBoot":true,"IsOffline":false,"LogicalSectorSize":512,"PhysicalSectorSize":512,"Path":"\\\\?\\scsi#disk&ven_nvme&prod_wdc_wds500g2b0c#5&1a2b3c&0&000000#{53f56307-b6bf-11d0-94f2-00a0c91efb8b}"},
-  {"Number":1,"FriendlyName":"Kingston DataTraveler 3.0","Model":"DataTraveler 3.0","Manufacturer":"Kingston","SerialNumber":"  60A44C4138B3E361B9750A3F  ","Size":31037849600,"BusType":7,"PartitionStyle":1,"IsReadOnly":false,"IsSystem":false,"IsBoot":false,"IsOffline":false,"LogicalSectorSize":512,"PhysicalSectorSize":512,"Path":"\\\\?\\usbstor#disk&ven_kingston&prod_datatraveler_3.0&rev_pmap#60a44c4138b3e361b9750a3f&0#{53f56307-b6bf-11d0-94f2-00a0c91efb8b}"},
-  {"Number":2,"FriendlyName":"Msft Virtual Disk","Model":"Virtual Disk","Manufacturer":"Msft","SerialNumber":"","Size":268435456,"BusType":"File Backed Virtual","PartitionStyle":"GPT","IsReadOnly":false,"IsSystem":false,"IsBoot":false,"IsOffline":false,"LogicalSectorSize":512,"PhysicalSectorSize":4096,"Path":"\\\\?\\scsi#disk&ven_msft&prod_virtual_disk#2&1f4adffe&0&000001#{53f56307-b6bf-11d0-94f2-00a0c91efb8b}"}
+{
+ "system_drive": "C:",
+ "disks": [
+  {
+   "Number": 0,
+   "FriendlyName": "WDC WDS500G2B0C-00PXH0",
+   "Model": "WDC WDS500G2B0C-00PXH0",
+   "Manufacturer": null,
+   "SerialNumber": "E823_8FA6_BF53_0001_001B_448B_4A1C_7E33.",
+   "Size": 500107862016,
+   "BusType": "NVMe",
+   "PartitionStyle": "GPT",
+   "IsReadOnly": false,
+   "IsSystem": true,
+   "IsBoot": true,
+   "IsOffline": false,
+   "LogicalSectorSize": 512,
+   "PhysicalSectorSize": 512,
+   "Path": "\\\\?\\scsi#disk&ven_nvme&prod_wdc_wds500g2b0c#5&1a2b3c&0&000000#{53f56307-b6bf-11d0-94f2-00a0c91efb8b}"
+  },
+  {
+   "Number": 1,
+   "FriendlyName": "Kingston DataTraveler 3.0",
+   "Model": "DataTraveler 3.0",
+   "Manufacturer": "Kingston",
+   "SerialNumber": "  60A44C4138B3E361B9750A3F  ",
+   "Size": 31037849600,
+   "BusType": 7,
+   "PartitionStyle": 1,
+   "IsReadOnly": false,
+   "IsSystem": false,
+   "IsBoot": false,
+   "IsOffline": false,
+   "LogicalSectorSize": 512,
+   "PhysicalSectorSize": 512,
+   "Path": "\\\\?\\usbstor#disk&ven_kingston&prod_datatraveler_3.0&rev_pmap#60a44c4138b3e361b9750a3f&0#{53f56307-b6bf-11d0-94f2-00a0c91efb8b}"
+  },
+  {
+   "Number": 2,
+   "FriendlyName": "Msft Virtual Disk",
+   "Model": "Virtual Disk",
+   "Manufacturer": "Msft",
+   "SerialNumber": "",
+   "Size": 268435456,
+   "BusType": "File Backed Virtual",
+   "PartitionStyle": "GPT",
+   "IsReadOnly": false,
+   "IsSystem": false,
+   "IsBoot": false,
+   "IsOffline": false,
+   "LogicalSectorSize": 512,
+   "PhysicalSectorSize": 4096,
+   "Path": "\\\\?\\scsi#disk&ven_msft&prod_virtual_disk#2&1f4adffe&0&000001#{53f56307-b6bf-11d0-94f2-00a0c91efb8b}"
+  }
  ],
- "partitions":[
-  {"DiskNumber":0,"PartitionNumber":1,"Size":104857600,"DriveLetter":null,"AccessPaths":["\\\\?\\Volume{aaaa0001-0000-0000-0000-000000000000}\\"]},
-  {"DiskNumber":0,"PartitionNumber":2,"Size":16777216,"DriveLetter":null,"AccessPaths":null},
-  {"DiskNumber":0,"PartitionNumber":3,"Size":499000000000,"DriveLetter":"C","AccessPaths":["C:\\","\\\\?\\Volume{aaaa0003-0000-0000-0000-000000000000}\\"]},
-  {"DiskNumber":1,"PartitionNumber":1,"Size":31036800000,"DriveLetter":"E","AccessPaths":["E:\\","\\\\?\\Volume{bbbb0001-0000-0000-0000-000000000000}\\"]},
-  {"DiskNumber":2,"PartitionNumber":1,"Size":16777216,"DriveLetter":null,"AccessPaths":null},
-  {"DiskNumber":2,"PartitionNumber":2,"Size":250609664,"DriveLetter":"V","AccessPaths":["V:\\","D:\\montado\\vhd\\","\\\\?\\Volume{cccc0002-0000-0000-0000-000000000000}\\"]}
+ "partitions": [
+  {
+   "DiskNumber": 0,
+   "PartitionNumber": 1,
+   "Size": 104857600,
+   "DriveLetter": null,
+   "AccessPaths": [
+    "\\\\?\\Volume{aaaa0001-0000-0000-0000-000000000000}\\"
+   ]
+  },
+  {
+   "DiskNumber": 0,
+   "PartitionNumber": 2,
+   "Size": 16777216,
+   "DriveLetter": null,
+   "AccessPaths": null
+  },
+  {
+   "DiskNumber": 0,
+   "PartitionNumber": 3,
+   "Size": 499000000000,
+   "DriveLetter": "C",
+   "AccessPaths": [
+    "C:\\",
+    "\\\\?\\Volume{aaaa0003-0000-0000-0000-000000000000}\\"
+   ]
+  },
+  {
+   "DiskNumber": 1,
+   "PartitionNumber": 1,
+   "Size": 31036800000,
+   "DriveLetter": "E",
+   "AccessPaths": [
+    "E:\\"
+   ]
+  },
+  {
+   "DiskNumber": 2,
+   "PartitionNumber": 1,
+   "Size": 16777216,
+   "DriveLetter": null,
+   "AccessPaths": null
+  },
+  {
+   "DiskNumber": 2,
+   "PartitionNumber": 2,
+   "Size": 250609664,
+   "DriveLetter": "V",
+   "AccessPaths": [
+    "V:\\",
+    "D:\\montado\\vhd\\",
+    "\\\\?\\Volume{cccc0002-0000-0000-0000-000000000000}\\"
+   ]
+  }
  ],
- "volumes":[
-  {"Path":"\\\\?\\Volume{aaaa0001-0000-0000-0000-000000000000}\\","FileSystem":"FAT32","FileSystemLabel":"","Size":104857600},
-  {"Path":"\\\\?\\Volume{aaaa0003-0000-0000-0000-000000000000}\\","FileSystem":"NTFS","FileSystemLabel":"Windows","Size":499000000000},
-  {"Path":"\\\\?\\Volume{bbbb0001-0000-0000-0000-000000000000}\\","FileSystem":"FAT32","FileSystemLabel":"MEU PEN","Size":31036800000},
-  {"Path":"\\\\?\\Volume{cccc0002-0000-0000-0000-000000000000}\\","FileSystem":"NTFS","FileSystemLabel":"TESTE VHD","Size":250609664}
+ "volumes": [
+  {
+   "Path": "\\\\?\\Volume{aaaa0001-0000-0000-0000-000000000000}\\",
+   "FileSystem": "FAT32",
+   "FileSystemLabel": "",
+   "Size": 104857600
+  },
+  {
+   "Path": "\\\\?\\Volume{aaaa0003-0000-0000-0000-000000000000}\\",
+   "FileSystem": "NTFS",
+   "FileSystemLabel": "Windows",
+   "Size": 499000000000
+  },
+  {
+   "Path": "\\\\?\\Volume{bbbb0001-0000-0000-0000-000000000000}\\",
+   "FileSystem": "FAT32",
+   "FileSystemLabel": "MEU PEN",
+   "Size": 31036800000,
+   "DriveLetter": "E"
+  },
+  {
+   "Path": "\\\\?\\Volume{cccc0002-0000-0000-0000-000000000000}\\",
+   "FileSystem": "NTFS",
+   "FileSystemLabel": "TESTE VHD",
+   "Size": 250609664
+  }
  ],
- "parents":{"1":"USB\\VID_0951&PID_1666\\60A44C4138B3E361B9750A3F"}}
+ "parents": {
+  "1": "USB\\VID_0951&PID_1666\\60A44C4138B3E361B9750A3F"
+ }
+}

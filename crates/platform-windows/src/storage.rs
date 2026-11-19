@@ -21,7 +21,8 @@ $disks = @(Get-Disk | Select-Object Number, FriendlyName, Model, Manufacturer, S
   IsReadOnly, IsSystem, IsBoot, IsOffline, LogicalSectorSize, PhysicalSectorSize, Path)
 $parts = @(Get-Partition -ErrorAction SilentlyContinue | Select-Object DiskNumber, PartitionNumber, Size,
   @{n='DriveLetter';e={Letter $_.DriveLetter}}, @{n='AccessPaths';e={@($_.AccessPaths)}})
-$vols = @(Get-Volume -ErrorAction SilentlyContinue | Select-Object Path, FileSystem, FileSystemLabel, Size)
+$vols = @(Get-Volume -ErrorAction SilentlyContinue | Select-Object Path, FileSystem, FileSystemLabel, Size,
+  @{n='DriveLetter';e={Letter $_.DriveLetter}})
 $parents = @{}
 foreach ($d in $disks) {
   if ($d.BusType -notmatch '^(USB|7)$' -or -not $d.Path) { continue }
@@ -137,6 +138,15 @@ pub fn parse(json: &str) -> Result<Vec<Device>, CoreError> {
         .into_iter()
         .filter_map(|v| Some((text(v, "Path")?.to_ascii_lowercase(), v)))
         .collect();
+    let by_letter: HashMap<char, &Value> = items(root.get("volumes"))
+        .into_iter()
+        .filter_map(|v| {
+            Some((
+                text(v, "DriveLetter")?.chars().next()?.to_ascii_uppercase(),
+                v,
+            ))
+        })
+        .collect();
     let parents = root.get("parents");
 
     let mut by_disk: HashMap<u64, Vec<(u64, Partition)>> = HashMap::new();
@@ -148,16 +158,26 @@ pub fn parse(json: &str) -> Result<Vec<Device>, CoreError> {
             .into_iter()
             .filter_map(|a| a.as_str().map(str::to_string))
             .collect();
-        let volume_path = access
+        let letter = text(p, "DriveLetter")
+            .and_then(|l| l.chars().next())
+            .map(|l| l.to_ascii_uppercase());
+        let mut volume_path = access
             .iter()
             .find(|a| a.starts_with(r"\\?\Volume"))
             .cloned();
+        // Partições com letra nem sempre trazem o caminho \\?\Volume em
+        // AccessPaths (visto no Windows real): junta também pela letra.
         let vol = volume_path
             .as_ref()
-            .and_then(|vp| volumes.get(&vp.to_ascii_lowercase()));
+            .and_then(|vp| volumes.get(&vp.to_ascii_lowercase()))
+            .or_else(|| letter.and_then(|l| by_letter.get(&l)))
+            .copied();
+        if volume_path.is_none() {
+            volume_path = vol.and_then(|v| text(v, "Path"));
+        }
         let mut mountpoints = Vec::new();
-        if let Some(l) = text(p, "DriveLetter").and_then(|l| l.chars().next()) {
-            mountpoints.push(format!(r"{}:\", l.to_ascii_uppercase()));
+        if let Some(l) = letter {
+            mountpoints.push(format!(r"{l}:\"));
         }
         for a in &access {
             if !a.starts_with(r"\\?\") && !mountpoints.iter().any(|m| m.eq_ignore_ascii_case(a)) {

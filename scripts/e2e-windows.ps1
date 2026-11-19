@@ -62,7 +62,7 @@ try {
   # ---------------------------------------------------------------- destrutivos
   $out = Usbk apagar "PhysicalDrive$n" --allow-non-usb --yes-i-know x
   Check ($LASTEXITCODE -ne 0 -and ($out -join ' ') -match 'M4b') "apagar responde que chega na M4b (sem gravar)"
-  $out = Usbk format "PhysicalDrive$n" --allow-non-usb --yes-i-know x
+  $out = Usbk format "PhysicalDrive$n" --fs exfat --allow-non-usb --yes-i-know x
   Check ($LASTEXITCODE -ne 0 -and ($out -join ' ') -match 'M4b') "format responde que chega na M4b"
   Check ((Get-Volume -DriveLetter $letter).FileSystemLabel -eq 'E2E USBK') "VHD intacto depois das recusas"
 
