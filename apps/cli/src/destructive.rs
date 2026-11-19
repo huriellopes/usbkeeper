@@ -326,9 +326,12 @@ pub fn eject(
     power_off: bool,
     json: bool,
 ) -> Result<()> {
-    // Só desmontar no Windows não é remoção segura (ele remonta no próximo acesso).
-    if cfg!(windows) {
-        bail!(crate::backend::WINDOWS_NEXT);
+    // No Windows, desmontar sozinho não é remoção segura (ele remonta no
+    // próximo acesso): remover com segurança é o próprio desligamento.
+    if cfg!(windows) && !power_off {
+        bail!(
+            "no Windows não existe só desmontar: remover com segurança desliga o dispositivo (tire o --no-power-off)"
+        );
     }
     let device = b.enumerator.get(device)?;
     let refusals = safety::check_target(&device, Policy { allow_non_usb });
@@ -348,6 +351,11 @@ pub fn eject(
     }
     let mut note: Option<String> = None;
     if power_off && let Err(e) = b.ejector.power_off(&device) {
+        // No Windows a recusa é erro: o volume volta a montar sozinho, então
+        // "desmontado" não seria seguro.
+        if cfg!(windows) {
+            return Err(e.into());
+        }
         // Desmontou, mas o desligamento não é suportado (ex.: alguns leitores
         // de cartão): as gravações terminaram, é seguro tirar quando o LED parar.
         note = Some(e.to_string());

@@ -4,6 +4,7 @@
 //! qualquer sistema (testada no CI Linux também); o que executa coisas é
 //! exclusivo do Windows.
 
+pub mod eject;
 pub mod format;
 pub mod paths;
 pub mod repair;
@@ -20,6 +21,8 @@ mod rawdev;
 
 #[cfg(windows)]
 pub use admin::is_elevated;
+#[cfg(windows)]
+pub use eject::WindowsEjector;
 #[cfg(windows)]
 pub use enumerate::WindowsEnumerator;
 #[cfg(windows)]

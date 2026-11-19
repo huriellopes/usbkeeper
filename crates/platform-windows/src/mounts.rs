@@ -1,14 +1,17 @@
-//! "Desmontar" no Windows: travar e desmontar os volumes do disco.
+//! Montar e "desmontar" no Windows: atribuir letras; travar e desmontar os
+//! volumes do disco.
+
+use std::os::windows::process::CommandExt;
+use std::process::Command;
 
 use usbkeeper_core::{CoreError, Device, Holder, Mounts};
 
 use crate::paths::disk_number;
 use crate::rawdev::lock_volumes;
 
-/// `mount_all` (atribuir letra) chega na M4b2.
-pub struct WindowsMounts {
-    pub mount_unsupported: &'static str,
-}
+pub struct WindowsMounts;
+
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 impl Mounts for WindowsMounts {
     /// Verificação antecipada: trava e desmonta (e solta) para recusar um
@@ -26,7 +29,48 @@ impl Mounts for WindowsMounts {
         Vec::new()
     }
 
-    fn mount_all(&self, _device: &Device) -> Result<Vec<String>, CoreError> {
-        Err(CoreError::Backend(self.mount_unsupported.into()))
+    /// Atribui uma letra às partições com sistema de arquivos e sem letra;
+    /// devolve as letras de todas (para aparecerem no Explorer).
+    fn mount_all(&self, device: &Device) -> Result<Vec<String>, CoreError> {
+        let n = disk_number(&device.path)
+            .ok_or_else(|| CoreError::Backend(format!("caminho inesperado: {}", device.path)))?;
+        let script = format!(
+            "$ErrorActionPreference='Stop'; $out = @(); \
+             foreach ($p in Get-Partition -DiskNumber {n} | Where-Object {{ $_.Type -notin 'Reserved','System','Recovery','Unknown' }}) {{ \
+               $v = $p | Get-Volume -ErrorAction SilentlyContinue; \
+               if (-not $v -or -not $v.FileSystem) {{ continue }}; \
+               if (-not $p.DriveLetter -or [int][char]$p.DriveLetter -eq 0) {{ \
+                 $p | Add-PartitionAccessPath -AssignDriveLetter; \
+                 $p = Get-Partition -DiskNumber {n} -PartitionNumber $p.PartitionNumber }}; \
+               $out += ([string]$p.DriveLetter + ':\\') }}; \
+             $out -join [Environment]::NewLine"
+        );
+        let out = Command::new("powershell.exe")
+            .args(["-NoProfile", "-NonInteractive", "-Command", &script])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output()?;
+        if !out.status.success() {
+            let err = String::from_utf8_lossy(&out.stderr);
+            let first = err
+                .lines()
+                .map(str::trim)
+                .find(|l| !l.is_empty())
+                .unwrap_or("erro desconhecido");
+            return Err(CoreError::Backend(format!(
+                "não consegui atribuir letra: {first}"
+            )));
+        }
+        let letters: Vec<String> = String::from_utf8_lossy(&out.stdout)
+            .lines()
+            .map(str::trim)
+            .filter(|l| l.len() >= 2)
+            .map(String::from)
+            .collect();
+        if letters.is_empty() {
+            return Err(CoreError::Backend(
+                "nenhuma partição com sistema de arquivos reconhecido para montar".into(),
+            ));
+        }
+        Ok(letters)
     }
 }

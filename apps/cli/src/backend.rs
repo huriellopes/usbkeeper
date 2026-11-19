@@ -2,9 +2,6 @@
 
 use usbkeeper_core::{BlockDevice, CoreError, Ejector, Enumerator, Formatter, Mounts, Repairer};
 
-/// Resposta no Windows às operações que chegam na M4b.
-pub const WINDOWS_NEXT: &str = "no Windows esta operação chega na próxima etapa (M4b2)";
-
 pub type OpenRaw = fn(&str, bool) -> Result<Box<dyn BlockDevice>, CoreError>;
 
 pub struct Backend {
@@ -38,9 +35,9 @@ pub fn backend(include_virtual: bool) -> Backend {
 #[cfg(windows)]
 pub fn backend(include_virtual: bool) -> Backend {
     use usbkeeper_windows::{
-        RawDevice, WindowsEnumerator, WindowsFormatter, WindowsMounts, WindowsRepairer,
+        RawDevice, WindowsEjector, WindowsEnumerator, WindowsFormatter, WindowsMounts,
+        WindowsRepairer,
     };
-    let next = || Box::new(unsupported::Unsupported(WINDOWS_NEXT));
     Backend {
         enumerator: Box::new(WindowsEnumerator { include_virtual }),
         formatter: Box::new(WindowsFormatter {
@@ -49,10 +46,8 @@ pub fn backend(include_virtual: bool) -> Backend {
                 .map(|p| p.display().to_string())
                 .unwrap_or_else(|_| "usbkeeper.exe".into()),
         }),
-        mounts: Box::new(WindowsMounts {
-            mount_unsupported: WINDOWS_NEXT,
-        }),
-        ejector: next(),
+        mounts: Box::new(WindowsMounts),
+        ejector: Box::new(WindowsEjector),
         repairer: Box::new(WindowsRepairer),
         open_raw: |path, write| Ok(Box::new(RawDevice::open(path, write)?)),
     }
@@ -71,14 +66,13 @@ pub fn backend(_include_virtual: bool) -> Backend {
     }
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", windows)))]
 pub mod unsupported {
     use usbkeeper_core::{
         CoreError, Device, Ejector, Enumerator, Formatter, Holder, Mounts, Repairer, Step,
         format::FormatRequest,
     };
 
-    #[cfg_attr(windows, allow(dead_code))]
     pub const LATER: &str = "plataforma ainda não suportada (macOS chega numa próxima etapa)";
 
     pub struct Unsupported(pub &'static str);
