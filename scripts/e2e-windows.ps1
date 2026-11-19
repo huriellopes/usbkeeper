@@ -1,4 +1,4 @@
-# e2e do usbkeeper no Windows (M4a, só leitura). Roda como administrador
+# e2e do usbkeeper no Windows (M4a leitura + M4b1 gravação). Roda como administrador
 # (o runner do GitHub já é): cria e anexa um VHD de 256 MB, formata com as
 # ferramentas do próprio Windows e confere o que o usbkeeper enxerga.
 #   pwsh scripts/e2e-windows.ps1 -Bin target\debug\usbkeeper.exe
@@ -59,12 +59,71 @@ try {
   $b = UsbkJson bench "PhysicalDrive$n" --sample-mb 32 --json
   Check ($b -and $b.bench.seq_read_mbps -gt 0 -and $b.bench.rand_read_iops -gt 0 -and $null -eq $b.bench.seq_write_mbps) "bench de leitura"
 
-  # ---------------------------------------------------------------- destrutivos
-  $out = Usbk apagar "PhysicalDrive$n" --allow-non-usb --yes-i-know x
-  Check ($LASTEXITCODE -ne 0 -and ($out -join ' ') -match 'M4b') "apagar responde que chega na M4b (sem gravar)"
-  $out = Usbk format "PhysicalDrive$n" --fs exfat --allow-non-usb --yes-i-know x
-  Check ($LASTEXITCODE -ne 0 -and ($out -join ' ') -match 'M4b') "format responde que chega na M4b"
-  Check ((Get-Volume -DriveLetter $letter).FileSystemLabel -eq 'E2E USBK') "VHD intacto depois das recusas"
+  # ---------------------------------------------------------------- M4b1: gravar
+  $dp = "\\.\PhysicalDrive$n"
+  $G = @('--allow-non-usb', '--unmount', '--yes-i-know', $dp)
+
+  # volume em uso → recusa sem gravar
+  $fh = [IO.File]::Open("${letter}:\em-uso.txt", 'Create', 'ReadWrite', 'None')
+  try { $out = Usbk apagar "PhysicalDrive$n" @G } finally { $fh.Close() }
+  Check ($LASTEXITCODE -ne 0 -and ($out -join ' ') -match 'em uso') "volume em uso: apagar recusa sem gravar"
+  Check ((Get-Volume -DriveLetter $letter).FileSystemLabel -eq 'E2E USBK') "volume intacto depois da recusa"
+
+  $r = UsbkJson fake-check "PhysicalDrive$n" @G --json
+  Check ($r -and $r.report.verdict -eq 'genuine') "fake-check rápido: genuíno"
+  $r = UsbkJson fake-check "PhysicalDrive$n" --full @G --json
+  Check ($r -and $r.report.verdict -eq 'genuine') "fake-check completo: genuíno"
+  $b = UsbkJson bench "PhysicalDrive$n" --write --sample-mb 32 @G --json
+  Check ($b -and $b.bench.seq_write_mbps -gt 0 -and $b.bench.rand_write_iops -gt 0) "bench com escrita"
+
+  $w = UsbkJson apagar "PhysicalDrive$n" --verificar @G --json
+  Check ($w -and $w.report.verified -eq $true -and $w.report.mismatched_bytes -eq 0) "apagar com zeros e verificar"
+  Update-Disk -Number $n
+  Check ((Get-Disk -Number $n).PartitionStyle -eq 'RAW') "depois de apagar o Windows vê o disco vazio (RAW)"
+  $out = Usbk apagar "PhysicalDrive$n" --descartar @G
+  Check ($LASTEXITCODE -ne 0 -and ($out -join ' ') -match 'TRIM') "TRIM recusado no Windows antes da série"
+
+  # imagem: cria volume com arquivo, imagem → apagar → restaurar
+  Initialize-Disk -Number $n -PartitionStyle GPT
+  $part = New-Partition -DiskNumber $n -UseMaximumSize -AssignDriveLetter
+  Format-Volume -Partition $part -FileSystem NTFS -NewFileSystemLabel 'E2E IMG' -Confirm:$false | Out-Null
+  $letter = (Get-Partition -DiskNumber $n | Where-Object DriveLetter | Select-Object -First 1).DriveLetter
+  Set-Content "${letter}:\leia.txt" 'usbkeeper imagem' -NoNewline
+  Write-VolumeCache -DriveLetter $letter
+  $img = Join-Path $work 'pen.img.zst'
+  Remove-Item $img, "$img.json" -ErrorAction SilentlyContinue
+  $m = UsbkJson imagem criar "PhysicalDrive$n" -o $img --json
+  Check ($m -and $m.meta.compressed -and $m.meta.size_bytes -eq 256MB) "imagem criada (zstd, 256 MiB)"
+  UsbkJson apagar "PhysicalDrive$n" @G --json | Out-Null
+  $rr = UsbkJson imagem restaurar $img "PhysicalDrive$n" --allow-non-usb --yes-i-know $dp --json
+  Check ($rr -and $rr.verified -eq $true) "restaurar confere o SHA-256"
+  Update-Disk -Number $n
+  $p2 = Get-Partition -DiskNumber $n | Where-Object { (Get-Volume -Partition $_ -ErrorAction SilentlyContinue).FileSystemLabel -eq 'E2E IMG' } | Select-Object -First 1
+  if ($p2 -and -not $p2.DriveLetter) { $p2 | Add-PartitionAccessPath -AssignDriveLetter; $p2 = Get-Partition -DiskNumber $n -PartitionNumber $p2.PartitionNumber }
+  Check ($p2 -and (Get-Content "$($p2.DriveLetter):\leia.txt" -Raw) -eq 'usbkeeper imagem') "volume e arquivo de volta depois de restaurar"
+
+  # ISO híbrida montada à mão
+  $iso = Join-Path $work 'teste.iso'
+  $bytes = [byte[]]::new(1MB)
+  $bytes[510] = 0x55; $bytes[511] = 0xAA
+  [Text.Encoding]::ASCII.GetBytes('CD001').CopyTo($bytes, 32769)
+  [Text.Encoding]::ASCII.GetBytes('TESTE_LINUX'.PadRight(32)).CopyTo($bytes, 32808)
+  for ($k = 40000; $k -lt $bytes.Length; $k++) { $bytes[$k] = [byte]($k % 251) }
+  [IO.File]::WriteAllBytes($iso, $bytes)
+  $hash = (Get-FileHash $iso -Algorithm SHA256).Hash.ToLower()
+  $g = UsbkJson gravar-iso $iso "PhysicalDrive$n" --sha256 $hash @G --json
+  Check ($g -and $g.verified -eq $true -and $g.report.sha256 -eq $hash) "gravar ISO híbrida conferindo o hash"
+  $win = Join-Path $work 'win.iso'
+  [Text.Encoding]::ASCII.GetBytes('CCCOMA_X64FRE_PT-BR_DV9'.PadRight(32)).CopyTo($bytes, 32808)
+  [IO.File]::WriteAllBytes($win, $bytes)
+  $out = Usbk gravar-iso $win "PhysicalDrive$n" @G
+  Check ($LASTEXITCODE -ne 0 -and ($out -join ' ') -match 'Windows') "ISO do Windows recusada"
+
+  # ainda na M4b2
+  $out = Usbk format "PhysicalDrive$n" --fs exfat @G
+  Check ($LASTEXITCODE -ne 0 -and ($out -join ' ') -match 'M4b2') "format responde que chega na M4b2"
+  $out = Usbk eject "PhysicalDrive$n" --allow-non-usb
+  Check ($LASTEXITCODE -ne 0 -and ($out -join ' ') -match 'M4b2') "remover responde que chega na M4b2"
 
   $hist = UsbkJson history --json
   Check ($null -ne $hist) "histórico em %LOCALAPPDATA%"
