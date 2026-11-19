@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>usbkeeper APT</title>
+<style>
+:root{--bg:#fff;--fg:#1b1d21;--muted:#5d6470;--code:#f2f4f7}
+@media (prefers-color-scheme:dark){:root{--bg:#121417;--fg:#e8eaed;--muted:#9aa1ab;--code:#1e2227}}
+body{background:var(--bg);color:var(--fg);font:16px/1.55 system-ui,sans-serif;max-width:46rem;margin:2rem auto;padding:0 16px}
+pre{background:var(--code);padding:1rem;border-radius:8px;overflow-x:auto;font-size:.9rem}
+p.m{color:var(--muted)}
+</style>
+</head>
+<body>
+<h1>usbkeeper: repositório APT</h1>
+<p>Gerenciador de pendrives e HDs externos: formatar, detectar falsificado, saúde, reparar, apagar, imagem do disco e gravar ISO.</p>
+<p class="m">Debian/Ubuntu/Mint amd64 (Ubuntu 24.04+, Mint 22+, Debian 13+).</p>
+<h2>Instalar</h2>
+<pre>sudo install -d -m 0755 /etc/apt/keyrings
+curl -fsSL https://huriellopes.github.io/usbkeeper/apt/usbkeeper.gpg | sudo tee /etc/apt/keyrings/usbkeeper.gpg &gt;/dev/null
+echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/usbkeeper.gpg] https://huriellopes.github.io/usbkeeper/apt stable main" \
+  | sudo tee /etc/apt/sources.list.d/usbkeeper.list
+sudo apt update &amp;&amp; sudo apt install usbkeeper</pre>
+<p>Atualizações chegam pelo <code>sudo apt upgrade</code>. Impressão digital da chave:<br><code>70E1 1B52 B3A3 FBB9 C0EE A95F 4695 DA6D E72E 8FAF</code></p>
+<p><a href="https://github.com/huriellopes/usbkeeper">Código-fonte e releases</a></p>
+</body>
+</html>
