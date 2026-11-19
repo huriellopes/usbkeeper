@@ -348,6 +348,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "33ef9e3e8154a45c7a95cff4c1299702106ad94062d7bb85fdc5d3a5afd91d45"
 dependencies = [
  "find-msvc-tools",
+ "jobserver",
+ "libc",
  "shlex",
 ]
 
@@ -1825,6 +1827,16 @@ checksum = "38c0b942f458fe50cdac086d2f946512305e5631e720728f2a61aabcd47a6264"
 dependencies = [
  "quote",
  "syn 2.0.119",
+]
+
+[[package]]
+name = "jobserver"
+version = "0.1.35"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1c00acbd29eabad4a2392fa0e921c874934dbbf4194312ad20f04a0ed67a3cb3"
+dependencies = [
+ "getrandom 0.4.3",
+ "libc",
 ]
 
 [[package]]
@@ -4193,32 +4205,36 @@ dependencies = [
 
 [[package]]
 name = "usbkeeper"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "clap",
  "ctrlc",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
+ "tempfile",
  "usbkeeper-core",
  "usbkeeper-guide",
  "usbkeeper-history",
  "usbkeeper-linux",
  "usbkeeper-smart",
+ "zstd",
 ]
 
 [[package]]
 name = "usbkeeper-core"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "serde",
+ "sha2 0.10.9",
  "thiserror 2.0.21",
  "ts-rs",
 ]
 
 [[package]]
 name = "usbkeeper-gui"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -4235,14 +4251,14 @@ dependencies = [
 
 [[package]]
 name = "usbkeeper-guide"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "pulldown-cmark",
 ]
 
 [[package]]
 name = "usbkeeper-history"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "rusqlite",
  "serde",
@@ -4253,7 +4269,7 @@ dependencies = [
 
 [[package]]
 name = "usbkeeper-linux"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "libc",
  "serde",
@@ -4264,7 +4280,7 @@ dependencies = [
 
 [[package]]
 name = "usbkeeper-smart"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -4999,3 +5015,31 @@ name = "zmij"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"
+
+[[package]]
+name = "zstd"
+version = "0.13.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "50adf04cf3ec914b0b9905c9dde90c80fe74bfd701e331fc80a39c512c525278"
+dependencies = [
+ "zstd-safe",
+]
+
+[[package]]
+name = "zstd-safe"
+version = "7.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "498d94ad68720c89b4fbe41b9090850651e68cb2dd9210ce7ffbff3a94653819"
+dependencies = [
+ "zstd-sys",
+]
+
+[[package]]
+name = "zstd-sys"
+version = "2.1.3+zstd.1.5.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f729a06d0257428fd9d997ac8db7e1407bd0262ab016b085b36bc52957c0052d"
+dependencies = [
+ "cc",
+ "pkg-config",
+]

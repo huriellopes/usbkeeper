@@ -3,6 +3,7 @@ mod backend;
 mod checks;
 mod destructive;
 mod health;
+mod image;
 mod machine;
 mod repair;
 mod report;
@@ -224,6 +225,29 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
+    /// Imagem do disco inteiro: criar (backup), verificar e restaurar (apelido: imagem)
+    #[command(name = "image", alias = "imagem")]
+    Image {
+        #[command(subcommand)]
+        action: ImageAction,
+    },
+    /// Grava uma ISO de boot no pendrive, conferindo o hash antes e depois (apelido: gravar-iso)
+    #[command(name = "burn-iso", alias = "gravar-iso")]
+    BurnIso {
+        iso: std::path::PathBuf,
+        device: String,
+        /// SHA-256 esperado da ISO (senão procura <iso>.sha256 ou SHA256SUMS ao lado)
+        #[arg(long)]
+        sha256: Option<String>,
+        /// Grava mesmo uma ISO do Windows (que não dá boot gravada assim)
+        #[arg(long)]
+        forcar: bool,
+        #[command(flatten)]
+        guard: GuardArgs,
+        /// Saída em JSON
+        #[arg(long)]
+        json: bool,
+    },
     /// Guia: pendrive, HD externo, MBR × GPT, sistemas de arquivos, falsificados… (ex.: usbkeeper guia mbr)
     Guia {
         /// Tópico (id ou apelido). Sem tópico, lista todos.
@@ -242,6 +266,46 @@ enum Command {
         #[arg(long)]
         allow_non_usb: bool,
         /// Resultado em JSON
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[derive(Subcommand)]
+enum ImageAction {
+    /// Cria a imagem do disco inteiro (só lê o disco)
+    #[command(alias = "criar")]
+    Create {
+        device: String,
+        /// Arquivo de saída (ex.: pendrive.img.zst)
+        #[arg(long, short = 'o')]
+        output: std::path::PathBuf,
+        /// Não comprimir (imagem .img crua)
+        #[arg(long)]
+        sem_compressao: bool,
+        /// Substituir o arquivo se já existir
+        #[arg(long)]
+        sobrescrever: bool,
+        /// Saída em JSON
+        #[arg(long)]
+        json: bool,
+    },
+    /// Confere se o arquivo de imagem está íntegro (SHA-256 do .json)
+    #[command(alias = "verificar")]
+    Verify {
+        image: std::path::PathBuf,
+        /// Saída em JSON
+        #[arg(long)]
+        json: bool,
+    },
+    /// Restaura a imagem num disco (apaga tudo o que houver nele)
+    #[command(alias = "restaurar")]
+    Restore {
+        image: std::path::PathBuf,
+        device: String,
+        #[command(flatten)]
+        guard: GuardArgs,
+        /// Saída em JSON
         #[arg(long)]
         json: bool,
     },
@@ -451,6 +515,45 @@ fn run(cli: Cli) -> Result<()> {
                 json,
             },
         )?,
+        Command::Image { action } => match action {
+            ImageAction::Create {
+                device,
+                output,
+                sem_compressao,
+                sobrescrever,
+                json,
+            } => image::create(
+                &backend(true),
+                &device,
+                &output,
+                !sem_compressao,
+                sobrescrever,
+                json,
+            )?,
+            ImageAction::Verify { image: path, json } => image::verify(&path, json)?,
+            ImageAction::Restore {
+                image: path,
+                device,
+                guard,
+                json,
+            } => image::restore(&backend(true), &path, &device, guard.into(), json)?,
+        },
+        Command::BurnIso {
+            iso,
+            device,
+            sha256,
+            forcar,
+            guard,
+            json,
+        } => image::burn_iso(
+            &backend(true),
+            &iso,
+            &device,
+            sha256.as_deref(),
+            forcar,
+            guard.into(),
+            json,
+        )?,
         Command::Guia { topic, html } => match topic {
             None => {
                 println!("Tópicos do guia (usbkeeper guia <tópico>):\n");
@@ -585,6 +688,54 @@ mod tests {
         assert!(
             Cli::try_parse_from(["usbkeeper", "apagar", "sdb", "--descartar", "--aleatorio"])
                 .is_err()
+        );
+    }
+
+    #[test]
+    fn imagem_and_gravar_iso_parse() {
+        let cli = Cli::try_parse_from(["usbkeeper", "imagem", "criar", "sdb", "-o", "pen.img.zst"])
+            .unwrap();
+        assert!(matches!(
+            cli.command,
+            Command::Image {
+                action: ImageAction::Create {
+                    sem_compressao: false,
+                    ..
+                }
+            }
+        ));
+        let cli = Cli::try_parse_from([
+            "usbkeeper",
+            "imagem",
+            "restaurar",
+            "pen.img.zst",
+            "sdb",
+            "--unmount",
+        ])
+        .unwrap();
+        assert!(matches!(
+            cli.command,
+            Command::Image {
+                action: ImageAction::Restore { .. }
+            }
+        ));
+        let cli = Cli::try_parse_from(["usbkeeper", "imagem", "verificar", "pen.img.zst"]).unwrap();
+        assert!(matches!(
+            cli.command,
+            Command::Image {
+                action: ImageAction::Verify { .. }
+            }
+        ));
+        let cli =
+            Cli::try_parse_from(["usbkeeper", "gravar-iso", "x.iso", "sdb", "--sha256", "abc"])
+                .unwrap();
+        assert!(matches!(
+            cli.command,
+            Command::BurnIso { forcar: false, .. }
+        ));
+        assert!(
+            Cli::try_parse_from(["usbkeeper", "imagem", "criar", "sdb"]).is_err(),
+            "-o obrigatório"
         );
     }
 

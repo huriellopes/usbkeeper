@@ -16,6 +16,7 @@ pub fn run() {
             devices::advise,
             devices::mount_device,
             devices::open_folder,
+            devices::image_meta,
             guide::guide_topics,
             ops::start_operation,
             ops::cancel_operation,

@@ -3,8 +3,8 @@
 Gerenciador multiplataforma de pendrives e HDs externos: listar, formatar, verificar saúde,
 detectar pendrives **falsificados** (capacidade adulterada) e medir velocidade, com histórico por número de série.
 
-> Status: **M6b**: CLI e **interface gráfica** no Linux, com **guia de ajuda**, **assistente de formatação**,
-> **verificar/reparar**, **montar**, **autoteste SMART**, **apagar com segurança** e tema claro/escuro: listar, formatar, ejetar, **detectar falsificados**,
+> Status: **M6c**: CLI e **interface gráfica** no Linux, com **guia de ajuda**, **assistente de formatação**,
+> **verificar/reparar**, **montar**, **autoteste SMART**, **apagar com segurança**, **imagem do disco**, **gravar ISO** e tema claro/escuro: listar, formatar, ejetar, **detectar falsificados**,
 > velocidade, **saúde (SMART + varredura)**, **histórico** e **laudo HTML**. Windows e macOS chegam nas próximas etapas (ver [Roadmap](#roadmap)).
 
 ## Interface gráfica
@@ -91,6 +91,18 @@ Mesmas travas do formatar (série, disco do sistema nunca). Em pendrive, cartão
 **não garante** apagar as áreas de reserva do controlador: para garantia total, criptografe desde o
 início (veja `usbkeeper guia apagar`). O *secure erase* de firmware não é usado (pode inutilizar o
 disco se interrompido).
+
+## Imagem do disco (backup) e gravar ISO
+
+```sh
+sudo usbkeeper imagem criar sdb -o pendrive.img.zst        # só lê; zstd + .json com SHA-256
+usbkeeper imagem verificar pendrive.img.zst                 # o arquivo continua íntegro?
+sudo usbkeeper imagem restaurar pendrive.img.zst sdb --unmount   # grava e confere o hash
+sudo usbkeeper gravar-iso ubuntu.iso sdb --unmount          # hash de --sha256, .sha256 ou SHA256SUMS
+```
+
+A ISO é conferida antes (se houver hash) e depois de gravar. ISOs do **Windows** são recusadas
+(gravadas byte a byte não dão boot; precisam de preparo especial). Na janela: aba **Backup e ISO**.
 
 ## Tema
 
@@ -233,7 +245,7 @@ O WSL2 não enxerga USB do Windows. Use [usbipd-win](https://github.com/dorssel/
 - [x] **M5b**: guia de ajuda (CLI e janela) e remoção segura em destaque
 - [x] **M6a**: tema, assistente de formatação, verificar/reparar, montar
 - [x] **M6b**: autoteste SMART e apagar com segurança
-- [ ] **M6c**: imagem do disco e gravar ISO de boot
+- [x] **M6c**: imagem do disco e gravar ISO de boot
 - [ ] **M7**: macOS
 
 ## Licença
