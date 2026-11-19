@@ -4193,7 +4193,7 @@ dependencies = [
 
 [[package]]
 name = "usbkeeper"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -4209,7 +4209,7 @@ dependencies = [
 
 [[package]]
 name = "usbkeeper-core"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "serde",
  "thiserror 2.0.21",
@@ -4218,7 +4218,7 @@ dependencies = [
 
 [[package]]
 name = "usbkeeper-gui"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -4235,14 +4235,14 @@ dependencies = [
 
 [[package]]
 name = "usbkeeper-guide"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "pulldown-cmark",
 ]
 
 [[package]]
 name = "usbkeeper-history"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "rusqlite",
  "serde",
@@ -4253,7 +4253,7 @@ dependencies = [
 
 [[package]]
 name = "usbkeeper-linux"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "libc",
  "serde",
@@ -4264,7 +4264,7 @@ dependencies = [
 
 [[package]]
 name = "usbkeeper-smart"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "serde",
  "serde_json",

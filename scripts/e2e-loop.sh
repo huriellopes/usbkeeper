@@ -266,6 +266,24 @@ expect "verificar acusa ext4 inconsistente" "$r" '.partitions[0].status == "erro
 r=$("$BIN" repair "$LOOP" --allow-non-usb --yes-i-know "$LOOP" --json | jq -c .report || echo null)
 expect "reparar corrige o ext4" "$r" '.partitions[0].status == "fixed"'
 
+# ---------------------------------------------------------------- M6b
+# Apagar com segurança (e autoteste real opcional: E2E_SELFTEST=1).
+dd if=/dev/urandom of="$LOOP" bs=1M count=64 conv=notrunc status=none   # dados "do usuário"
+w=$("$BIN" apagar "$LOOP" --verificar --allow-non-usb --yes-i-know "$LOOP" --json | jq -c .report || echo null)
+expect "apagar com zeros e verificar" "$w" '.verified == true and .mismatched_bytes == 0'
+size=$(blockdev --getsize64 "$LOOP")
+cmp -s -n "$size" "$LOOP" /dev/zero && ok "byte a byte: só restaram zeros (cmp)" || bad "sobraram dados após apagar"
+w=$("$BIN" apagar "$LOOP" --aleatorio --passadas 2 --verificar --allow-non-usb --yes-i-know "$LOOP" --json | jq -c .report || echo null)
+expect "apagar aleatório, 2 passadas, verificado" "$w" '.verified == true and .passes == 2 and .pattern == "random"'
+cmp -s -n 1048576 "$LOOP" /dev/zero && bad "aleatório deixou zeros" || ok "aleatório não deixou zeros"
+"$BIN" apagar "$LOOP" --descartar --allow-non-usb --yes-i-know "$LOOP" --json >/dev/null 2>&1 \
+  && ok "descartar (TRIM) num loop" || bad "descartar num loop"
+if [[ ${E2E_SELFTEST:-0} == 1 ]]; then
+  disk=$(lsblk -dn -o NAME,TYPE,TRAN | awk '$2 == "disk" && $3 != "" && $3 != "usb" {print $1; exit}')
+  v=$("$BIN" --no-history autoteste "$disk" --curto --esperar --json | jq -c '{v: .verdict, r: .result.status}' || echo null)
+  expect "autoteste curto real em $disk: $v" "$v" '.v == "passed"'
+fi
+
 # ---------------------------------------------------------------- M3
 make_fake bad badblock 64 64
 h=$("$BIN" health "$TOP" --scan --json | jq -c . || echo null)
