@@ -6,6 +6,7 @@ import { Sidebar } from "./features/sidebar/Sidebar";
 import { DevicePanel } from "./features/device/DevicePanel";
 import { HelpPanel } from "./features/help/HelpPanel";
 import { Notice } from "./features/remove/Notice";
+import { ThemeSwitch } from "./features/theme/ThemeSwitch";
 
 const POLL_MS = 2000;
 
@@ -54,7 +55,8 @@ export default function App() {
           />
           {error && <p className="p-4 text-sm" style={{ color: "var(--bad)" }}>{error}</p>}
         </div>
-        <div className="border-t p-2" style={{ borderColor: "var(--line)" }}>
+        <div className="flex flex-col gap-2 border-t p-2" style={{ borderColor: "var(--line)" }}>
+          <ThemeSwitch />
           <button
             type="button"
             onClick={() => (help.open ? closeHelp() : openHelp())}

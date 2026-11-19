@@ -1,14 +1,17 @@
+mod advise;
 mod backend;
 mod checks;
 mod destructive;
 mod health;
 mod machine;
+mod repair;
 mod report;
 mod store;
 mod view;
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
+use usbkeeper_core::advice::{BigFiles, Usage};
 use usbkeeper_core::format::{Filesystem, PartitionTable};
 use usbkeeper_core::safety::{self, Policy};
 
@@ -143,6 +146,43 @@ enum Command {
         /// Arquivo de saída (padrão: usbkeeper-<chave>.html)
         #[arg(long, short = 'o')]
         output: Option<std::path::PathBuf>,
+    },
+    /// Recomenda como formatar para o seu uso (apelido: recomendar)
+    #[command(name = "advise", alias = "recomendar")]
+    Advise {
+        device: String,
+        /// misto | windows | linux | aparelho | videogame
+        #[arg(long)]
+        uso: Usage,
+        /// Vai guardar arquivos maiores que 4 GB? sim | nao | nao-sei
+        #[arg(long, default_value = "nao-sei")]
+        arquivos_grandes: BigFiles,
+        /// Saída em JSON
+        #[arg(long)]
+        json: bool,
+    },
+    /// Verifica (--check, não altera nada) ou repara os sistemas de arquivos (apelido: reparar)
+    #[command(alias = "reparar")]
+    Repair {
+        device: String,
+        /// Só verifica, sem alterar nada
+        #[arg(long)]
+        check: bool,
+        #[command(flatten)]
+        guard: GuardArgs,
+        /// Saída em JSON
+        #[arg(long)]
+        json: bool,
+    },
+    /// Monta as partições para aparecerem no gerenciador de arquivos (apelido: montar)
+    #[command(alias = "montar")]
+    Mount {
+        device: String,
+        #[arg(long)]
+        allow_non_usb: bool,
+        /// Saída em JSON
+        #[arg(long)]
+        json: bool,
     },
     /// Guia: pendrive, HD externo, MBR × GPT, sistemas de arquivos, falsificados… (ex.: usbkeeper guia mbr)
     Guia {
@@ -317,6 +357,23 @@ fn run(cli: Cli) -> Result<()> {
         }
         Command::History { device, json } => report::history(&backend(true), device, json)?,
         Command::Report { device, output } => report::report(&backend(true), device, output)?,
+        Command::Advise {
+            device,
+            uso,
+            arquivos_grandes,
+            json,
+        } => advise::advise(&backend(true), &device, uso, arquivos_grandes, json)?,
+        Command::Repair {
+            device,
+            check,
+            guard,
+            json,
+        } => repair::repair(&backend(true), &device, check, guard.into(), json)?,
+        Command::Mount {
+            device,
+            allow_non_usb,
+            json,
+        } => destructive::mount(&backend(true), &device, allow_non_usb, json)?,
         Command::Guia { topic, html } => match topic {
             None => {
                 println!("Tópicos do guia (usbkeeper guia <tópico>):\n");
@@ -378,6 +435,37 @@ mod tests {
         assert!(matches!(cli.command, Command::Guia { topic: Some(t), html: false } if t == "mbr"));
         let cli = Cli::try_parse_from(["usbkeeper", "remover", "sdb"]).unwrap();
         assert!(matches!(cli.command, Command::Eject { device, .. } if device == "sdb"));
+    }
+
+    #[test]
+    fn advise_and_repair_parse() {
+        use usbkeeper_core::advice::{BigFiles, Usage};
+        let cli = Cli::try_parse_from([
+            "usbkeeper",
+            "recomendar",
+            "sdb",
+            "--uso",
+            "tv",
+            "--arquivos-grandes",
+            "sim",
+        ])
+        .unwrap();
+        assert!(matches!(
+            cli.command,
+            Command::Advise {
+                uso: Usage::Appliance,
+                arquivos_grandes: BigFiles::Yes,
+                ..
+            }
+        ));
+        let cli = Cli::try_parse_from(["usbkeeper", "reparar", "sdb", "--check"]).unwrap();
+        assert!(matches!(cli.command, Command::Repair { check: true, .. }));
+    }
+
+    #[test]
+    fn montar_parses() {
+        let cli = Cli::try_parse_from(["usbkeeper", "montar", "sdb"]).unwrap();
+        assert!(matches!(cli.command, Command::Mount { device, .. } if device == "sdb"));
     }
 
     #[test]

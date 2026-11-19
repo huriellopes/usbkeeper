@@ -230,7 +230,7 @@ steps=$("$BIN" format "$LOOP" --fs fat32 --allow-non-usb --yes-i-know "$LOOP" --
 # ---------------------------------------------------------------- M5b
 # Guia e remoção segura.
 n=$("$BIN" guia | grep -cE '^  [a-z-]+ +[[:upper:]]' || true)
-(( n == 12 )) && ok "guia lista 12 tópicos" || bad "guia lista $n tópicos"
+(( n == 13 )) && ok "guia lista 13 tópicos" || bad "guia lista $n tópicos"
 "$BIN" guia gpt | head -1 | grep -q "MBR × GPT" && ok "guia aceita apelido (gpt)" || bad "guia gpt"
 mount "${LOOP}p1" "$WORK/mnt"
 sleep 300 < /dev/null > "$WORK/mnt/segura.txt" &
@@ -244,6 +244,28 @@ kill "$HOLDER"; wait "$HOLDER" 2>/dev/null || true; HOLDER=""
   && ! findmnt -rn "$WORK/mnt" >/dev/null \
   && ok "remover --no-power-off desmonta" || bad "remover --no-power-off"
 
+# ---------------------------------------------------------------- M6a
+# Recomendar, verificar/reparar com corrupção proposital, montar.
+a=$("$BIN" recomendar "$LOOP" --uso aparelho --json | jq -c .advice || echo null)
+expect "recomendar para aparelho → FAT32/MBR" "$a" '.filesystem == "fat32" and .table == "mbr"'
+
+"$BIN" format "$LOOP" --fs fat32 --allow-non-usb --yes-i-know "$LOOP" >/dev/null
+printf '\x01' | dd of="${LOOP}p1" bs=1 seek=65 conv=notrunc status=none   # liga o "dirty bit" do FAT32
+r=$("$BIN" repair "$LOOP" --check --allow-non-usb --json | jq -c .report || echo null)
+expect "verificar acusa FAT32 sujo" "$r" '.partitions[0].status == "errors_remain"'
+r=$("$BIN" repair "$LOOP" --allow-non-usb --yes-i-know "$LOOP" --json | jq -c .report || echo null)
+expect "reparar corrige o FAT32" "$r" '.partitions[0].status == "fixed"'
+r=$("$BIN" repair "$LOOP" --check --allow-non-usb --json | jq -c .report || echo null)
+expect "nova verificação do FAT32 limpa" "$r" '.partitions[0].status == "clean"'
+
+"$BIN" format "$LOOP" --fs ext4 --allow-non-usb --yes-i-know "$LOOP" >/dev/null
+mount "${LOOP}p1" "$WORK/mnt" && echo x > "$WORK/mnt/x" && umount "$WORK/mnt"
+debugfs -w -R "set_inode_field /x links_count 5" "${LOOP}p1" >/dev/null 2>&1
+r=$("$BIN" repair "$LOOP" --check --allow-non-usb --json | jq -c .report || echo null)
+expect "verificar acusa ext4 inconsistente" "$r" '.partitions[0].status == "errors_remain"'
+r=$("$BIN" repair "$LOOP" --allow-non-usb --yes-i-know "$LOOP" --json | jq -c .report || echo null)
+expect "reparar corrige o ext4" "$r" '.partitions[0].status == "fixed"'
+
 # ---------------------------------------------------------------- M3
 make_fake bad badblock 64 64
 h=$("$BIN" health "$TOP" --scan --json | jq -c . || echo null)
@@ -255,10 +277,16 @@ h=$("$BIN" health "$LOOP" --scan --json | jq -c . || echo null)
 expect "varredura limpa no genuíno" "$h" '.scan.unreadable_blocks == 0 and .scan.scanned_bytes > 0'
 
 # SMART real (somente leitura) nos discos físicos desta máquina.
-for disk in $(lsblk -dn -o NAME,TYPE,TRAN | awk '$2 == "disk" && $3 != "" {print $1}'); do
-  h=$("$BIN" --no-history health "$disk" --json | jq -c '{v: .smart.verdict, t: .smart.device_type, m: .smart.model}' || echo null)
-  expect "SMART real em $disk: $h" "$h" '.v != null and .v != "unknown"'
-done
+# Discos internos têm SMART; pendrives/cartões USB quase nunca: para eles só
+# exigimos que o motivo seja explicado.
+while read -r disk tran; do
+  h=$("$BIN" --no-history health "$disk" --json | jq -c '{v: .smart.verdict, t: .smart.device_type, m: .smart.model, n: (.smart.notes | length)}' || echo null)
+  if [[ $tran == usb ]]; then
+    expect "SMART em $disk (USB): $h" "$h" '.v != null and (.v != "unknown" or .n > 0)'
+  else
+    expect "SMART real em $disk: $h" "$h" '.v != null and .v != "unknown"'
+  fi
+done < <(lsblk -dn -o NAME,TYPE,TRAN | awk '$2 == "disk" && $3 != "" {print $1, $3}')
 
 hist=$("$BIN" history --json | jq -c . || echo null)
 expect "histórico registra os dispositivos testados" "$hist" 'length >= 3'

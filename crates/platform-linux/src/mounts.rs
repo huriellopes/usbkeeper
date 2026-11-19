@@ -88,6 +88,17 @@ pub fn holders_in(proc_root: &Path, mountpoints: &[&str]) -> Vec<Holder> {
     found
 }
 
+/// Espera o udev terminar de processar eventos pendentes. Fechar um disco
+/// aberto para escrita (ou desmontá-lo) dispara uma releitura pelo udev, e
+/// durante ela o lsblk devolve o sistema de arquivos vazio.
+pub fn settle() {
+    if let Some(udevadm) = find_tool("udevadm") {
+        let _ = Command::new(udevadm)
+            .args(["settle", "--timeout=10"])
+            .status();
+    }
+}
+
 pub fn is_root() -> bool {
     fs::read_to_string("/proc/self/status")
         .ok()
@@ -109,6 +120,28 @@ fn run(program: &str, args: &[&str]) -> Result<(), String> {
     } else {
         Err(String::from_utf8_lossy(&out.stderr).trim().to_string())
     }
+}
+
+/// Sistemas de arquivos que o gerenciador de arquivos sabe abrir.
+const MOUNTABLE: [&str; 7] = ["vfat", "exfat", "ntfs", "ntfs3", "ext2", "ext3", "ext4"];
+
+/// Partições com sistema de arquivos montável e ainda não montadas.
+pub fn mountable(
+    parts: &[usbkeeper_core::Partition],
+) -> impl Iterator<Item = &usbkeeper_core::Partition> {
+    parts.iter().filter(|p| {
+        p.mountpoints.is_empty()
+            && p.fstype
+                .as_deref()
+                .is_some_and(|f| MOUNTABLE.contains(&f) || f == "ext2")
+    })
+}
+
+/// "Mounted /dev/sdb1 at /media/ana/PEN" (algumas versões põem ponto final).
+pub fn parse_mounted(out: &str) -> Option<String> {
+    let line = out.lines().find(|l| l.starts_with("Mounted "))?;
+    let (_, at) = line.split_once(" at ")?;
+    Some(at.trim().trim_end_matches('.').to_string())
 }
 
 #[derive(Default)]
@@ -172,6 +205,30 @@ impl Mounts for LinuxMounts {
         Ok(())
     }
 
+    fn mount_all(&self, device: &Device) -> Result<Vec<String>, CoreError> {
+        let udisksctl = find_tool("udisksctl").ok_or_else(|| CoreError::MissingTool {
+            tool: "udisksctl".into(),
+            package: "udisks2".into(),
+        })?;
+        let mut mounted = Vec::new();
+        for p in mountable(&device.partitions) {
+            let out = Command::new(&udisksctl)
+                .args(["mount", "--no-user-interaction", "-b", &p.path])
+                .env("LC_ALL", "C")
+                .output()?;
+            if !out.status.success() {
+                return Err(CoreError::CommandFailed {
+                    command: format!("udisksctl mount -b {}", p.path),
+                    stderr: String::from_utf8_lossy(&out.stderr).trim().to_string(),
+                });
+            }
+            if let Some(at) = parse_mounted(&String::from_utf8_lossy(&out.stdout)) {
+                mounted.push(at);
+            }
+        }
+        Ok(mounted)
+    }
+
     fn holders(&self, device: &Device) -> Vec<Holder> {
         let points: Vec<&str> = device.all_mountpoints().collect();
         holders_in(Path::new("/proc"), &points)
@@ -202,6 +259,44 @@ impl Ejector for LinuxEjector {
 mod tests {
     use super::*;
     use std::os::unix::fs::symlink;
+
+    #[test]
+    fn reads_udisks_mount_output() {
+        assert_eq!(
+            parse_mounted("Mounted /dev/sdb1 at /media/ana/MEU PEN\n").as_deref(),
+            Some("/media/ana/MEU PEN")
+        );
+        assert_eq!(
+            parse_mounted("Mounted /dev/sdb1 at /media/ana/PEN.\n").as_deref(),
+            Some("/media/ana/PEN")
+        );
+        assert_eq!(parse_mounted("Error mounting"), None);
+    }
+
+    #[test]
+    fn only_unmounted_supported_filesystems_are_mounted() {
+        let part = |name: &str, fs: Option<&str>, mounted: bool| usbkeeper_core::Partition {
+            name: name.into(),
+            path: format!("/dev/{name}"),
+            size_bytes: 1,
+            fstype: fs.map(String::from),
+            label: None,
+            mountpoints: if mounted {
+                vec!["/media/x".into()]
+            } else {
+                vec![]
+            },
+        };
+        let parts = [
+            part("sdb1", Some("vfat"), false),
+            part("sdb2", Some("exfat"), true),
+            part("sdb3", Some("crypto_LUKS"), false),
+            part("sdb4", None, false),
+            part("sdb5", Some("ext4"), false),
+        ];
+        let chosen: Vec<&str> = mountable(&parts).map(|p| p.name.as_str()).collect();
+        assert_eq!(chosen, ["sdb1", "sdb5"]);
+    }
 
     #[test]
     fn finds_mount_source_with_escaped_spaces() {

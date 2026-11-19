@@ -1,6 +1,7 @@
 use serde::Serialize;
 
 use crate::format::FormatRequest;
+use crate::repair::RepairReport;
 use crate::{CoreError, Device};
 
 /// Descobre os discos visíveis no sistema. Cada plataforma tem a sua.
@@ -83,9 +84,23 @@ pub trait Mounts {
     /// [`CoreError::Busy`] com os processos responsáveis.
     fn unmount_all(&self, device: &Device) -> Result<(), CoreError>;
     fn holders(&self, device: &Device) -> Vec<Holder>;
+    /// Monta as partições montáveis ainda não montadas (para aparecerem no
+    /// gerenciador de arquivos). Devolve os pontos de montagem criados.
+    fn mount_all(&self, device: &Device) -> Result<Vec<String>, CoreError>;
 }
 
 pub trait Ejector {
     /// Desliga o dispositivo para remoção segura (já desmontado).
     fn power_off(&self, device: &Device) -> Result<(), CoreError>;
+}
+
+/// Verifica (`check_only`) ou repara os sistemas de arquivos das partições.
+/// `step(rótulo, feito, total)` é chamado antes de cada partição.
+pub trait Repairer {
+    fn repair(
+        &self,
+        device: &Device,
+        check_only: bool,
+        step: &mut dyn FnMut(&str, u64, u64),
+    ) -> Result<RepairReport, CoreError>;
 }

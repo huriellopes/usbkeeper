@@ -91,6 +91,7 @@ pub mod kind {
     pub const BENCH: &str = "bench";
     pub const HEALTH: &str = "health";
     pub const SCAN: &str = "scan";
+    pub const REPAIR: &str = "repair";
 }
 
 pub struct History {
