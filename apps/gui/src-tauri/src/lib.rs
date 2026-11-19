@@ -13,6 +13,7 @@ pub fn run() {
             devices::usb_hint,
             devices::device_holders,
             devices::history_events,
+            devices::advise,
             guide::guide_topics,
             ops::start_operation,
             ops::cancel_operation,

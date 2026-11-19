@@ -5,7 +5,8 @@ import { humanBytes } from "../../lib/format";
 import { useApp } from "../../lib/store";
 import { BenchTab } from "../bench/BenchTab";
 import { FakeCheckTab } from "../check/FakeCheckTab";
-import { FormatTab } from "../format/FormatTab";
+import { AdviceCard } from "../format/AdviceCard";
+import { type FormatInitial, FormatTab } from "../format/FormatTab";
 import { HealthTab } from "../health/HealthTab";
 import { HistoryTab } from "../history/HistoryTab";
 import { ConfirmDialog } from "../ops/ConfirmDialog";
@@ -30,7 +31,10 @@ export function DevicePanel({ view }: { view: DeviceView }) {
   const d = view.device;
   const op = useApp((s) => s.ops[d.path]);
   const opCancelling = useApp((s) => s.opCancelling);
-  const [formatLimit, setFormatLimit] = useState<number | undefined>(view.suggested_max_bytes ?? undefined);
+  const [formatInitial, setFormatInitial] = useState<FormatInitial>(
+    view.suggested_max_bytes != null ? { maxBytes: view.suggested_max_bytes } : {},
+  );
+  const [showAdvice, setShowAdvice] = useState(false);
   const formatOp = useOperation(view);
   const ejectOp = useOperation(view);
   const ejected = ejectOp.last("eject");
@@ -102,7 +106,7 @@ export function DevicePanel({ view }: { view: DeviceView }) {
           <FakeCheckTab
             view={view}
             onReformat={(m) => {
-              setFormatLimit(m);
+              setFormatInitial({ maxBytes: m });
               setTab("format");
             }}
           />
@@ -111,10 +115,29 @@ export function DevicePanel({ view }: { view: DeviceView }) {
         {tab === "bench" && <BenchTab view={view} />}
         {tab === "format" && (
           <>
+            <button type="button" onClick={() => setShowAdvice((v) => !v)} aria-expanded={showAdvice}
+              className="mb-4 rounded-md px-3 py-1 text-sm" style={{ border: "1px solid var(--line)" }}>
+              {showAdvice ? "Fechar assistente" : "Me ajude a escolher"}
+            </button>
+            {showAdvice && (
+              <div className="mb-4">
+                <AdviceCard
+                  device={d.path}
+                  onApply={(a) => {
+                    setFormatInitial({
+                      filesystem: a.filesystem,
+                      table: a.table,
+                      maxBytes: a.max_bytes ?? undefined,
+                    });
+                    setShowAdvice(false);
+                  }}
+                />
+              </div>
+            )}
             <FormatTab
-              key={formatLimit ?? "sem-limite"}
+              key={JSON.stringify(formatInitial)}
               view={view}
-              initialMaxBytes={formatLimit}
+              initial={formatInitial}
               busy={!!op}
               onSubmit={(req) =>
                 formatOp.run(req, {
