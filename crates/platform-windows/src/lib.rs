@@ -5,6 +5,7 @@
 //! exclusivo do Windows.
 
 pub mod paths;
+pub mod repair;
 pub mod storage;
 
 #[cfg(windows)]
@@ -24,3 +25,5 @@ pub use enumerate::WindowsEnumerator;
 pub use mounts::WindowsMounts;
 #[cfg(windows)]
 pub use rawdev::{RawDevice, lock_volumes};
+#[cfg(windows)]
+pub use repair::WindowsRepairer;

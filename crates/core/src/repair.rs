@@ -9,6 +9,8 @@ pub enum Tool {
     Exfat,
     Ntfs,
     Ext,
+    /// `chkdsk` do Windows (FAT32, exFAT e NTFS).
+    Chkdsk,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -66,10 +68,17 @@ enum Outcome {
 
 /// e2fsck e fsck.exfat usam bits (1/2 = alterou, 4 = erros restantes,
 /// 8+ = falha); fsck.vfat usa 1 = problemas/alterou e 2 = erro de uso;
-/// ntfsfix só distingue 0 de não-zero.
+/// ntfsfix só distingue 0 de não-zero; chkdsk: 1 = corrigiu, 2 = só fez
+/// limpeza, 3 = erros não corrigidos (ou não conseguiu verificar).
 fn outcome(tool: Tool, code: i32) -> Outcome {
     match tool {
         _ if code == 0 => Outcome::Clean,
+        Tool::Chkdsk => match code {
+            1 => Outcome::Changed,
+            2 => Outcome::Clean,
+            3 => Outcome::Errors,
+            _ => Outcome::Failed,
+        },
         Tool::Ntfs => Outcome::Errors,
         Tool::Vfat if code == 1 => Outcome::Changed,
         Tool::Vfat => Outcome::Failed,
@@ -105,6 +114,25 @@ pub fn repair_status(tool: Tool, repair_code: i32, recheck_code: i32) -> RepairS
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn chkdsk_exit_codes() {
+        assert_eq!(check_status(Tool::Chkdsk, 0), RepairStatus::Clean);
+        assert_eq!(
+            check_status(Tool::Chkdsk, 2),
+            RepairStatus::Clean,
+            "só limpeza"
+        );
+        assert_eq!(check_status(Tool::Chkdsk, 3), RepairStatus::ErrorsRemain);
+        assert_eq!(check_status(Tool::Chkdsk, 5), RepairStatus::Failed);
+        assert_eq!(repair_status(Tool::Chkdsk, 1, 0), RepairStatus::Fixed);
+        assert_eq!(repair_status(Tool::Chkdsk, 0, 0), RepairStatus::Clean);
+        assert_eq!(
+            repair_status(Tool::Chkdsk, 1, 3),
+            RepairStatus::ErrorsRemain
+        );
+        assert_eq!(repair_status(Tool::Chkdsk, 9, 0), RepairStatus::Failed);
+    }
 
     #[test]
     fn check_codes_per_tool() {
