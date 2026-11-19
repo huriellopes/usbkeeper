@@ -45,7 +45,7 @@ pub fn selftest(
     if before.running {
         bail!("já há um autoteste rodando neste disco; espere terminar ou aborte-o");
     }
-    let previous = before.log.first().cloned();
+    let previous_log = before.log.clone();
     selftest::start(&dev.path, &dtype, kind).map_err(|e| anyhow!(e))?;
     let minutes = before.polling_minutes;
 
@@ -86,7 +86,12 @@ pub fn selftest(
             continue;
         }
         // Terminou: espera o log ganhar a entrada nova (a anterior é de outro teste).
-        if state.log.first() != previous.as_ref() || grace >= LOG_GRACE_POLLS {
+        // (só o log aqui: o status do disco é o fallback depois da espera)
+        let log_only = SelfTestState {
+            last_passed: None,
+            ..state.clone()
+        };
+        if selftest::new_result(&previous_log, &log_only).is_some() || grace >= LOG_GRACE_POLLS {
             break state;
         }
         grace += 1;
@@ -94,8 +99,8 @@ pub fn selftest(
     reporter.report(Phase::SelfTest, 100, 100);
     reporter.finish();
 
-    let result: Option<&SelfTestEntry> =
-        state.log.first().filter(|e| Some(*e) != previous.as_ref());
+    let result: Option<SelfTestEntry> = selftest::new_result(&previous_log, &state);
+    let result = result.as_ref();
     let verdict = match result.and_then(|e| e.passed) {
         Some(true) => "passed",
         Some(false) => "failed",

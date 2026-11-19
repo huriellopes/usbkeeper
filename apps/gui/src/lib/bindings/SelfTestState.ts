@@ -9,4 +9,9 @@ polling_minutes: number | null,
 /**
  * Log do disco, do mais recente para o mais antigo.
  */
-log: Array<SelfTestEntry>, };
+log: Array<SelfTestEntry>, 
+/**
+ * Status do último autoteste informado pelo disco (ATA), quando não
+ * está rodando: segunda fonte quando o log é ambíguo.
+ */
+last_passed: boolean | null, };

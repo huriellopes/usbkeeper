@@ -6,6 +6,11 @@ set -euo pipefail
 [[ $EUID -eq 0 ]] || { echo "rode com sudo: sudo $0"; exit 1; }
 
 BIN=${BIN:-$(dirname "$0")/../target/debug/usbkeeper}
+# Binário mais antigo que o código testaria a versão errada (e compilar aqui,
+# como root, deixaria arquivos do root no target/).
+[[ -x $BIN ]] || { echo "não achei $BIN: rode 'cargo build' (sem sudo) antes"; exit 1; }
+stale=$(find "$(dirname "$0")/../crates" "$(dirname "$0")/../apps/cli" \( -name '*.rs' -o -name '*.md' -o -name 'Cargo.toml' \) -newer "$BIN" -not -path '*/tests/*' -print -quit)
+[[ -z $stale ]] || { echo "binário desatualizado ($stale é mais novo): rode 'cargo build' (sem sudo) antes"; exit 1; }
 WORK=$(mktemp -d)
 IMG=$WORK/pen.img
 export USBKEEPER_DB=$WORK/history.db   # histórico isolado do real

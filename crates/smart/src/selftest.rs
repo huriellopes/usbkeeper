@@ -45,6 +45,34 @@ pub struct SelfTestState {
     pub polling_minutes: Option<u64>,
     /// Log do disco, do mais recente para o mais antigo.
     pub log: Vec<SelfTestEntry>,
+    /// Status do último autoteste informado pelo disco (ATA), quando não
+    /// está rodando: segunda fonte quando o log é ambíguo.
+    pub last_passed: Option<bool>,
+}
+
+/// Resultado do autoteste que acabou de rodar, comparando com o log de
+/// antes. A entrada nova pode ser idêntica à anterior (mesmo tipo e mesma
+/// hora de uso), então também conta o log que cresceu ou se deslocou. Sem
+/// entrada nova reconhecível, usa o status que o disco informa.
+pub fn new_result(before: &[SelfTestEntry], now: &SelfTestState) -> Option<SelfTestEntry> {
+    let log = &now.log;
+    let shifted =
+        log.len() >= 2 && before.len() >= log.len() - 1 && log[1..] == before[..log.len() - 1];
+    let added =
+        !log.is_empty() && (log.len() > before.len() || log.first() != before.first() || shifted);
+    if added {
+        return log.first().cloned();
+    }
+    now.last_passed.map(|passed| SelfTestEntry {
+        kind: "autoteste".into(),
+        status: if passed {
+            "Completed without error".into()
+        } else {
+            "falhou (status informado pelo disco)".into()
+        },
+        passed: Some(passed),
+        hours: None,
+    })
 }
 
 fn str_at(v: &Value, path: &str) -> Option<String> {
@@ -81,11 +109,17 @@ fn parse_ata(v: &Value, kind: SelfTestKind) -> Option<SelfTestState> {
                 .collect()
         })
         .unwrap_or_default();
+    let last_passed = if running {
+        None
+    } else {
+        status.get("passed").and_then(Value::as_bool)
+    };
     Some(SelfTestState {
         running,
         remaining_percent: running.then_some(remaining).flatten(),
         polling_minutes: polling,
         log,
+        last_passed,
     })
 }
 
@@ -121,6 +155,7 @@ fn parse_nvme(v: &Value) -> Option<SelfTestState> {
         remaining_percent: running.then(|| 100u8.saturating_sub(done.unwrap_or(0) as u8)),
         polling_minutes: None,
         log,
+        last_passed: None,
     })
 }
 
