@@ -320,6 +320,7 @@ mod tests {
             partition_table: None,
             logical_sector: 512,
             physical_sector: 512,
+            system_disk: false,
             mountpoints: vec![],
             partitions: vec![Partition {
                 name: "sdb1".into(),

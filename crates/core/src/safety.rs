@@ -67,9 +67,18 @@ impl Refusal {
 }
 
 pub fn system_mountpoint(device: &Device) -> Option<&str> {
-    device
+    let by_mount = device
         .all_mountpoints()
-        .find(|m| SYSTEM_MOUNTPOINTS.contains(m))
+        .find(|m| SYSTEM_MOUNTPOINTS.contains(m));
+    if by_mount.is_some() || !device.system_disk {
+        return by_mount;
+    }
+    Some(
+        device
+            .all_mountpoints()
+            .next()
+            .unwrap_or("(disco de boot do sistema)"),
+    )
 }
 
 /// Lista todas as razões que impedem gravar no disco. Vazio = liberado.
@@ -166,10 +175,32 @@ mod tests {
             partition_table: Some("dos".into()),
             logical_sector: 512,
             physical_sector: 512,
+            system_disk: false,
             mountpoints: vec![],
             partitions,
             usb: None,
         }
+    }
+
+    #[test]
+    fn flagged_system_disk_is_refused() {
+        // Windows: o disco do C: vem marcado pela plataforma.
+        let mut d = disk(Transport::Nvme, vec![part("PhysicalDrive0-p3", &["C:\\"])]);
+        d.system_disk = true;
+        let r = check_target(
+            &d,
+            Policy {
+                allow_non_usb: true,
+            },
+        );
+        assert_eq!(
+            r,
+            vec![Refusal::SystemDisk {
+                mountpoint: "C:\\".into()
+            }]
+        );
+        d.partitions.clear();
+        assert_eq!(system_mountpoint(&d), Some("(disco de boot do sistema)"));
     }
 
     #[test]
