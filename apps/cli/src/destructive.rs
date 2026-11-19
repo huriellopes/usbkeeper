@@ -83,6 +83,12 @@ pub fn take(b: &Backend, device: &Device, guard: &Guard) -> Result<Device> {
         b.mounts.unmount_all(device).map_err(busy_error)?;
     }
 
+    // Abrir para escrita (ensure_writable) e desmontar disparam uma releitura
+    // do udev; sem esperar, o lsblk pode devolver o sistema de arquivos vazio
+    // (o reparo via "partição sem sistema de arquivos").
+    #[cfg(target_os = "linux")]
+    usbkeeper_linux::settle();
+
     // O pendrive pode ter sido trocado enquanto o usuário digitava.
     let current = b.enumerator.get(&device.path)?;
     if let Err(m) = safety::verify_same(&identity, &current) {

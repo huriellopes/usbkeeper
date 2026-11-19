@@ -15,7 +15,7 @@ use std::process::Command;
 use usbkeeper_core::{CoreError, Device, Enumerator, Transport};
 
 pub use format::LinuxFormatter;
-pub use mounts::{LinuxEjector, LinuxMounts, is_root};
+pub use mounts::{LinuxEjector, LinuxMounts, is_root, settle};
 pub use rawdev::RawDevice;
 pub use repair::LinuxRepairer;
 

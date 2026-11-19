@@ -277,10 +277,16 @@ h=$("$BIN" health "$LOOP" --scan --json | jq -c . || echo null)
 expect "varredura limpa no genuíno" "$h" '.scan.unreadable_blocks == 0 and .scan.scanned_bytes > 0'
 
 # SMART real (somente leitura) nos discos físicos desta máquina.
-for disk in $(lsblk -dn -o NAME,TYPE,TRAN | awk '$2 == "disk" && $3 != "" {print $1}'); do
-  h=$("$BIN" --no-history health "$disk" --json | jq -c '{v: .smart.verdict, t: .smart.device_type, m: .smart.model}' || echo null)
-  expect "SMART real em $disk: $h" "$h" '.v != null and .v != "unknown"'
-done
+# Discos internos têm SMART; pendrives/cartões USB quase nunca: para eles só
+# exigimos que o motivo seja explicado.
+while read -r disk tran; do
+  h=$("$BIN" --no-history health "$disk" --json | jq -c '{v: .smart.verdict, t: .smart.device_type, m: .smart.model, n: (.smart.notes | length)}' || echo null)
+  if [[ $tran == usb ]]; then
+    expect "SMART em $disk (USB): $h" "$h" '.v != null and (.v != "unknown" or .n > 0)'
+  else
+    expect "SMART real em $disk: $h" "$h" '.v != null and .v != "unknown"'
+  fi
+done < <(lsblk -dn -o NAME,TYPE,TRAN | awk '$2 == "disk" && $3 != "" {print $1, $3}')
 
 hist=$("$BIN" history --json | jq -c . || echo null)
 expect "histórico registra os dispositivos testados" "$hist" 'length >= 3'

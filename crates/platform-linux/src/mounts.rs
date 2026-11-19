@@ -88,6 +88,17 @@ pub fn holders_in(proc_root: &Path, mountpoints: &[&str]) -> Vec<Holder> {
     found
 }
 
+/// Espera o udev terminar de processar eventos pendentes. Fechar um disco
+/// aberto para escrita (ou desmontá-lo) dispara uma releitura pelo udev, e
+/// durante ela o lsblk devolve o sistema de arquivos vazio.
+pub fn settle() {
+    if let Some(udevadm) = find_tool("udevadm") {
+        let _ = Command::new(udevadm)
+            .args(["settle", "--timeout=10"])
+            .status();
+    }
+}
+
 pub fn is_root() -> bool {
     fs::read_to_string("/proc/self/status")
         .ok()
