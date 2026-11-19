@@ -54,10 +54,7 @@ pub fn wipe(b: &Backend, a: WipeArgs) -> Result<()> {
     let current = confirm_and_take(b, &device, &a.guard)?;
 
     if a.discard {
-        #[cfg(target_os = "linux")]
-        usbkeeper_linux::discard(&current.path)?;
-        #[cfg(not(target_os = "linux"))]
-        bail!("descarte ainda não suportado nesta plataforma");
+        discard_device(&current.path)?;
         store::record(
             &current,
             kind::WIPE,
@@ -145,4 +142,14 @@ pub fn summary(r: &WipeReport) -> String {
             None => "",
         }
     )
+}
+
+#[cfg(target_os = "linux")]
+fn discard_device(path: &str) -> Result<()> {
+    Ok(usbkeeper_linux::discard(path)?)
+}
+
+#[cfg(not(target_os = "linux"))]
+fn discard_device(_path: &str) -> Result<()> {
+    bail!("descarte ainda não suportado nesta plataforma")
 }
