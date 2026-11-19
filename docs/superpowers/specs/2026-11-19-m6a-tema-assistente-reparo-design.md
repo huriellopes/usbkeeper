@@ -152,3 +152,20 @@ ver Saúde; NTFS → `chkdsk /f`), e sempre fazer backup antes de reparar. Apeli
 ## Fora do escopo
 
 Reparar tabela de partições; recuperação de partições apagadas; HFS+/APFS/btrfs/xfs.
+
+## Adendo (pedido durante a implementação): montar e abrir no gerenciador de arquivos
+
+- **Linux (agora):** `udisksctl mount --no-user-interaction -b <partição>` para cada partição com
+  sistema de arquivos montável (vfat, exfat, ntfs/ntfs3, ext2/3/4) e ainda não montada. Sem senha
+  (polkit do udisks), no mesmo lugar que o gerenciador de arquivos usaria (`/media/<usuário>/<rótulo>`).
+  O ponto de montagem é lido da saída (`Mounted /dev/sdb1 at /media/ana/PEN`).
+- **CLI:** `usbkeeper mount <disco>` (apelido `montar`), `--json`. Disco do sistema recusado; só USB
+  por padrão (`--allow-non-usb`). Rodado como root, avisa que a montagem iria para `/media/root` e
+  recomenda rodar sem sudo.
+- **Janela:** no topo do painel, **Montar** (quando nada está montado) e **Abrir pasta** (abre o
+  primeiro ponto de montagem no gerenciador de arquivos com `xdg-open`; só aceita pontos de
+  montagem do próprio disco listado, nunca um caminho arbitrário).
+- **Windows/macOS:** o próprio sistema monta (letra de unidade / `diskutil mount`); entra junto com
+  os backends dessas plataformas.
+- Testes: leitura da saída do udisksctl; escolha das partições montáveis; botões Montar/Abrir pasta
+  conforme o estado.
