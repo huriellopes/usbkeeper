@@ -6,6 +6,11 @@ set -euo pipefail
 [[ $EUID -eq 0 ]] || { echo "rode com sudo: sudo $0"; exit 1; }
 
 BIN=${BIN:-$(dirname "$0")/../target/debug/usbkeeper}
+# Binário mais antigo que o código testaria a versão errada (e compilar aqui,
+# como root, deixaria arquivos do root no target/).
+[[ -x $BIN ]] || { echo "não achei $BIN: rode 'cargo build' (sem sudo) antes"; exit 1; }
+stale=$(find "$(dirname "$0")/../crates" "$(dirname "$0")/../apps/cli" \( -name '*.rs' -o -name '*.md' -o -name 'Cargo.toml' \) -newer "$BIN" -not -path '*/tests/*' -print -quit)
+[[ -z $stale ]] || { echo "binário desatualizado ($stale é mais novo): rode 'cargo build' (sem sudo) antes"; exit 1; }
 WORK=$(mktemp -d)
 IMG=$WORK/pen.img
 export USBKEEPER_DB=$WORK/history.db   # histórico isolado do real
@@ -230,7 +235,7 @@ steps=$("$BIN" format "$LOOP" --fs fat32 --allow-non-usb --yes-i-know "$LOOP" --
 # ---------------------------------------------------------------- M5b
 # Guia e remoção segura.
 n=$("$BIN" guia | grep -cE '^  [a-z-]+ +[[:upper:]]' || true)
-(( n == 12 )) && ok "guia lista 12 tópicos" || bad "guia lista $n tópicos"
+(( n == 15 )) && ok "guia lista 15 tópicos" || bad "guia lista $n tópicos"
 "$BIN" guia gpt | head -1 | grep -q "MBR × GPT" && ok "guia aceita apelido (gpt)" || bad "guia gpt"
 mount "${LOOP}p1" "$WORK/mnt"
 sleep 300 < /dev/null > "$WORK/mnt/segura.txt" &
@@ -244,6 +249,76 @@ kill "$HOLDER"; wait "$HOLDER" 2>/dev/null || true; HOLDER=""
   && ! findmnt -rn "$WORK/mnt" >/dev/null \
   && ok "remover --no-power-off desmonta" || bad "remover --no-power-off"
 
+# ---------------------------------------------------------------- M6a
+# Recomendar, verificar/reparar com corrupção proposital, montar.
+a=$("$BIN" recomendar "$LOOP" --uso aparelho --json | jq -c .advice || echo null)
+expect "recomendar para aparelho → FAT32/MBR" "$a" '.filesystem == "fat32" and .table == "mbr"'
+
+"$BIN" format "$LOOP" --fs fat32 --allow-non-usb --yes-i-know "$LOOP" >/dev/null
+printf '\x01' | dd of="${LOOP}p1" bs=1 seek=65 conv=notrunc status=none   # liga o "dirty bit" do FAT32
+r=$("$BIN" repair "$LOOP" --check --allow-non-usb --json | jq -c .report || echo null)
+expect "verificar acusa FAT32 sujo" "$r" '.partitions[0].status == "errors_remain"'
+r=$("$BIN" repair "$LOOP" --allow-non-usb --yes-i-know "$LOOP" --json | jq -c .report || echo null)
+expect "reparar corrige o FAT32" "$r" '.partitions[0].status == "fixed"'
+r=$("$BIN" repair "$LOOP" --check --allow-non-usb --json | jq -c .report || echo null)
+expect "nova verificação do FAT32 limpa" "$r" '.partitions[0].status == "clean"'
+
+"$BIN" format "$LOOP" --fs ext4 --allow-non-usb --yes-i-know "$LOOP" >/dev/null
+mount "${LOOP}p1" "$WORK/mnt" && echo x > "$WORK/mnt/x" && umount "$WORK/mnt"
+debugfs -w -R "set_inode_field /x links_count 5" "${LOOP}p1" >/dev/null 2>&1
+r=$("$BIN" repair "$LOOP" --check --allow-non-usb --json | jq -c .report || echo null)
+expect "verificar acusa ext4 inconsistente" "$r" '.partitions[0].status == "errors_remain"'
+r=$("$BIN" repair "$LOOP" --allow-non-usb --yes-i-know "$LOOP" --json | jq -c .report || echo null)
+expect "reparar corrige o ext4" "$r" '.partitions[0].status == "fixed"'
+
+# ---------------------------------------------------------------- M6b
+# Apagar com segurança (e autoteste real opcional: E2E_SELFTEST=1).
+dd if=/dev/urandom of="$LOOP" bs=1M count=64 conv=notrunc status=none   # dados "do usuário"
+w=$("$BIN" apagar "$LOOP" --verificar --allow-non-usb --yes-i-know "$LOOP" --json | jq -c .report || echo null)
+expect "apagar com zeros e verificar" "$w" '.verified == true and .mismatched_bytes == 0'
+size=$(blockdev --getsize64 "$LOOP")
+cmp -s -n "$size" "$LOOP" /dev/zero && ok "byte a byte: só restaram zeros (cmp)" || bad "sobraram dados após apagar"
+w=$("$BIN" apagar "$LOOP" --aleatorio --passadas 2 --verificar --allow-non-usb --yes-i-know "$LOOP" --json | jq -c .report || echo null)
+expect "apagar aleatório, 2 passadas, verificado" "$w" '.verified == true and .passes == 2 and .pattern == "random"'
+cmp -s -n 1048576 "$LOOP" /dev/zero && bad "aleatório deixou zeros" || ok "aleatório não deixou zeros"
+"$BIN" apagar "$LOOP" --descartar --allow-non-usb --yes-i-know "$LOOP" --json >/dev/null 2>&1 \
+  && ok "descartar (TRIM) num loop" || bad "descartar num loop"
+if [[ ${E2E_SELFTEST:-0} == 1 ]]; then
+  disk=$(lsblk -dn -o NAME,TYPE,TRAN | awk '$2 == "disk" && $3 != "" && $3 != "usb" {print $1; exit}')
+  v=$("$BIN" --no-history autoteste "$disk" --curto --esperar --json | jq -c '{v: .verdict, r: .result.status}' || echo null)
+  expect "autoteste curto real em $disk: $v" "$v" '.v == "passed"'
+fi
+
+# ---------------------------------------------------------------- M6c
+# Imagem do disco (criar → apagar → restaurar → mesmo hash) e gravar ISO.
+dd if=/dev/urandom of="$LOOP" bs=1M count=32 conv=notrunc status=none
+orig=$(sha256sum < "$LOOP" | cut -d' ' -f1)
+m=$("$BIN" imagem criar "$LOOP" -o "$WORK/pen.img.zst" --json | jq -c . || echo null)
+expect "imagem criada com o hash do disco" "$m" ".meta.sha256 == \"$orig\" and .meta.compressed == true and .file_bytes < 100000000"
+v=$("$BIN" imagem verificar "$WORK/pen.img.zst" --json | jq -c . || echo null)
+expect "imagem verificar confere com o .json" "$v" '.matches_meta == true'
+"$BIN" apagar "$LOOP" --allow-non-usb --yes-i-know "$LOOP" --json >/dev/null 2>&1
+r=$("$BIN" imagem restaurar "$WORK/pen.img.zst" "$LOOP" --allow-non-usb --yes-i-know "$LOOP" --json | jq -c . || echo null)
+expect "restaurar verifica o hash" "$r" '.verified == true'
+[[ $(sha256sum < "$LOOP" | cut -d' ' -f1) == "$orig" ]] && ok "disco restaurado idêntico ao original (sha256sum)" || bad "disco restaurado difere"
+
+if command -v xorriso >/dev/null; then
+  mkdir -p "$WORK/isoroot" && echo "usbkeeper" > "$WORK/isoroot/leia.txt"
+  xorriso -as mkisofs -o "$WORK/teste.iso" -V TESTE_LINUX --protective-msdos-label "$WORK/isoroot" >/dev/null 2>&1
+  h=$(sha256sum "$WORK/teste.iso" | cut -d' ' -f1)
+  g=$("$BIN" gravar-iso "$WORK/teste.iso" "$LOOP" --sha256 "$h" --allow-non-usb --yes-i-know "$LOOP" --json | jq -c . || echo null)
+  expect "gravar ISO híbrida com hash certo" "$g" '.verified == true'
+  cmp -s -n "$(stat -c %s "$WORK/teste.iso")" "$WORK/teste.iso" "$LOOP" && ok "ISO gravada idêntica (cmp)" || bad "ISO gravada difere"
+  out=$("$BIN" gravar-iso "$WORK/teste.iso" "$LOOP" --sha256 "$(printf '0%.0s' {1..64})" --allow-non-usb --yes-i-know "$LOOP" 2>&1) \
+    && bad "gravou com hash errado" || { [[ $out == *"não confere"* ]] && ok "hash errado recusado" || bad "hash errado: $out"; }
+  cp "$WORK/teste.iso" "$WORK/win.iso"
+  printf 'CCCOMA_X64FRE_PT-BR_DV9         ' | dd of="$WORK/win.iso" bs=1 seek=32808 conv=notrunc status=none
+  out=$("$BIN" gravar-iso "$WORK/win.iso" "$LOOP" --allow-non-usb --yes-i-know "$LOOP" 2>&1) \
+    && bad "gravou ISO do Windows sem --forcar" || { [[ $out == *Windows* ]] && ok "ISO do Windows recusada com explicação" || bad "windows: $out"; }
+else
+  echo "(sem xorriso: pulando os testes de ISO)"
+fi
+
 # ---------------------------------------------------------------- M3
 make_fake bad badblock 64 64
 h=$("$BIN" health "$TOP" --scan --json | jq -c . || echo null)
@@ -255,10 +330,16 @@ h=$("$BIN" health "$LOOP" --scan --json | jq -c . || echo null)
 expect "varredura limpa no genuíno" "$h" '.scan.unreadable_blocks == 0 and .scan.scanned_bytes > 0'
 
 # SMART real (somente leitura) nos discos físicos desta máquina.
-for disk in $(lsblk -dn -o NAME,TYPE,TRAN | awk '$2 == "disk" && $3 != "" {print $1}'); do
-  h=$("$BIN" --no-history health "$disk" --json | jq -c '{v: .smart.verdict, t: .smart.device_type, m: .smart.model}' || echo null)
-  expect "SMART real em $disk: $h" "$h" '.v != null and .v != "unknown"'
-done
+# Discos internos têm SMART; pendrives/cartões USB quase nunca: para eles só
+# exigimos que o motivo seja explicado.
+while read -r disk tran; do
+  h=$("$BIN" --no-history health "$disk" --json | jq -c '{v: .smart.verdict, t: .smart.device_type, m: .smart.model, n: (.smart.notes | length)}' || echo null)
+  if [[ $tran == usb ]]; then
+    expect "SMART em $disk (USB): $h" "$h" '.v != null and (.v != "unknown" or .n > 0)'
+  else
+    expect "SMART real em $disk: $h" "$h" '.v != null and .v != "unknown"'
+  fi
+done < <(lsblk -dn -o NAME,TYPE,TRAN | awk '$2 == "disk" && $3 != "" {print $1, $3}')
 
 hist=$("$BIN" history --json | jq -c . || echo null)
 expect "histórico registra os dispositivos testados" "$hist" 'length >= 3'

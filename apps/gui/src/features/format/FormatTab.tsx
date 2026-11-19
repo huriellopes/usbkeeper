@@ -5,13 +5,16 @@ import { FS, type Fs, validateLabel } from "../../lib/label";
 import { GUIDE } from "../../lib/guideLinks";
 import { HelpButton } from "../help/HelpButton";
 
-type Props = { view: DeviceView; initialMaxBytes?: number; onSubmit: (req: OpRequest) => void; busy: boolean };
+/** Valores iniciais do formulário (assistente ou "reformatar só a parte real"). */
+export type FormatInitial = { filesystem?: Fs; table?: "mbr" | "gpt"; maxBytes?: number };
 
-export function FormatTab({ view, initialMaxBytes, onSubmit, busy }: Props) {
-  const [fs, setFs] = useState<Fs>("exfat");
+type Props = { view: DeviceView; initial?: FormatInitial; onSubmit: (req: OpRequest) => void; busy: boolean };
+
+export function FormatTab({ view, initial = {}, onSubmit, busy }: Props) {
+  const [fs, setFs] = useState<Fs>(initial.filesystem ?? "exfat");
   const [label, setLabel] = useState("");
-  const [table, setTable] = useState<"auto" | "mbr" | "gpt">("auto");
-  const [limitMb, setLimitMb] = useState(initialMaxBytes ? String(Math.floor(initialMaxBytes / 1e6)) : "");
+  const [table, setTable] = useState<"auto" | "mbr" | "gpt">(initial.table ?? "auto");
+  const [limitMb, setLimitMb] = useState(initial.maxBytes ? String(Math.floor(initial.maxBytes / 1e6)) : "");
   const check = validateLabel(fs, label);
   const maxBytes = limitMb.trim() ? Number(limitMb) * 1e6 : null;
   const limited = maxBytes != null && Number.isFinite(maxBytes) && maxBytes > 0;

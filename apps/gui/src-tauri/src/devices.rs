@@ -6,6 +6,7 @@ use std::time::{Duration, Instant};
 use serde::Serialize;
 use tauri::State;
 use ts_rs::TS;
+use usbkeeper_core::advice::{Advice, BigFiles, DiskFacts, Usage};
 use usbkeeper_core::safety::{self, Policy, Refusal};
 use usbkeeper_core::{Device, Holder};
 use usbkeeper_history::{DeviceInfo, DeviceSummary, Event, History, kind};
@@ -191,6 +192,106 @@ pub fn device_holders(path: String) -> Vec<Holder> {
     Vec::new()
 }
 
+/// Fatos do histórico para o assistente: último fake-check falso
+/// (capacidade real, limite sugerido) e último veredito de saúde.
+fn history_facts(device: &Device) -> (Option<(u64, u64)>, Option<String>) {
+    let events = open_history()
+        .and_then(|h| h.events(&info(device).key()).ok())
+        .unwrap_or_default();
+    let fake = events
+        .iter()
+        .rev()
+        .find(|e| e.kind == kind::FAKE_CHECK)
+        .filter(|e| e.verdict.as_deref() == Some("fake"))
+        .and_then(|e| {
+            Some((
+                e.data.get("real_bytes")?.as_u64()?,
+                e.data.get("suggested_max_bytes")?.as_u64()?,
+            ))
+        });
+    let health = events
+        .iter()
+        .rev()
+        .find(|e| e.kind == kind::HEALTH)
+        .and_then(|e| e.verdict.clone());
+    (fake, health)
+}
+
+/// Assistente de formatação (sem root: só lê o disco e o histórico).
+#[tauri::command]
+pub fn advise(device: String, usage: Usage, big_files: BigFiles) -> Result<Advice, String> {
+    let dev = enumerate()?
+        .into_iter()
+        .find(|d| d.path == device)
+        .ok_or_else(|| format!("{device} não está mais conectado"))?;
+    let (fake, health) = history_facts(&dev);
+    Ok(usbkeeper_core::advice::advise(
+        usage,
+        big_files,
+        &DiskFacts::of(&dev, fake, health),
+    ))
+}
+
+/// Só abre no gerenciador de arquivos um ponto de montagem do próprio
+/// disco; nunca um caminho arbitrário vindo da interface.
+pub fn allowed_mountpoint(device: &Device, mountpoint: &str) -> bool {
+    mountpoint.starts_with('/') && device.all_mountpoints().any(|m| m == mountpoint)
+}
+
+fn find_device(path: &str) -> Result<Device, String> {
+    enumerate()?
+        .into_iter()
+        .find(|d| d.path == path)
+        .ok_or_else(|| format!("{path} não está mais conectado"))
+}
+
+/// Monta as partições (udisks, sem senha) para aparecerem no gerenciador de arquivos.
+#[tauri::command]
+pub fn mount_device(path: String) -> Result<Vec<String>, String> {
+    let dev = find_device(&path)?;
+    let refusals = safety::check_target(
+        &dev,
+        Policy {
+            allow_non_usb: show_virtual(),
+        },
+    );
+    if let Some(r) = refusals
+        .iter()
+        .find(|r| r.is_absolute() || matches!(r, Refusal::NotUsb { .. }))
+    {
+        return Err(r.message());
+    }
+    #[cfg(target_os = "linux")]
+    {
+        use usbkeeper_core::Mounts;
+        usbkeeper_linux::LinuxMounts
+            .mount_all(&dev)
+            .map_err(|e| e.to_string())
+    }
+    #[cfg(not(target_os = "linux"))]
+    Err("montar ainda não é suportado nesta plataforma".into())
+}
+
+#[tauri::command]
+pub fn open_folder(path: String, mountpoint: String) -> Result<(), String> {
+    let dev = find_device(&path)?;
+    if !allowed_mountpoint(&dev, &mountpoint) {
+        return Err("esse caminho não é um ponto de montagem deste disco".into());
+    }
+    std::process::Command::new("xdg-open")
+        .arg(&mountpoint)
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| format!("não foi possível abrir o gerenciador de arquivos: {e}"))
+}
+
+/// Lê `<imagem>.json` (modelo, tamanho, data, hash) para mostrar antes de restaurar.
+#[tauri::command]
+pub fn image_meta(path: String) -> Option<serde_json::Value> {
+    let text = std::fs::read_to_string(format!("{path}.json")).ok()?;
+    serde_json::from_str(&text).ok()
+}
+
 #[tauri::command]
 pub fn history_events(key: String) -> Result<Vec<Event>, String> {
     match open_history() {
@@ -243,6 +344,15 @@ mod tests {
         assert_eq!(v.confirmation_token, "ABC");
         let v = device_view(dev(Transport::Usb, ""), &[], None);
         assert!(!v.is_system && v.refusals.is_empty());
+    }
+
+    #[test]
+    fn only_own_mountpoints_can_be_opened() {
+        let d = dev(Transport::Usb, "/media/ana/PEN");
+        assert!(allowed_mountpoint(&d, "/media/ana/PEN"));
+        assert!(!allowed_mountpoint(&d, "/etc"));
+        assert!(!allowed_mountpoint(&d, "/media/ana/PEN/../../.."));
+        assert!(!allowed_mountpoint(&d, "media/ana/PEN"));
     }
 
     #[test]

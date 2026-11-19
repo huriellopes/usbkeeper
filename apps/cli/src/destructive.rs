@@ -69,12 +69,25 @@ pub fn precheck(device: &Device, guard: &Guard) -> Result<()> {
 pub fn confirm_and_take(b: &Backend, device: &Device, guard: &Guard) -> Result<Device> {
     ensure_writable(device)?;
     confirm(device, guard.yes_i_know.as_deref())?;
+    take(b, device, guard)
+}
+
+/// Desmonta (se `--unmount` foi pedido; o `precheck` já recusou o caso
+/// contrário) e relê o disco conferindo identidade e regras. Usado direto
+/// pelo `repair --check`, que não altera nada e por isso não pede a série.
+pub fn take(b: &Backend, device: &Device, guard: &Guard) -> Result<Device> {
     let identity = device.identity();
 
     if device.is_mounted() {
         eprintln!("Desmontando...");
         b.mounts.unmount_all(device).map_err(busy_error)?;
     }
+
+    // Abrir para escrita (ensure_writable) e desmontar disparam uma releitura
+    // do udev; sem esperar, o lsblk pode devolver o sistema de arquivos vazio
+    // (o reparo via "partição sem sistema de arquivos").
+    #[cfg(target_os = "linux")]
+    usbkeeper_linux::settle();
 
     // O pendrive pode ter sido trocado enquanto o usuário digitava.
     let current = b.enumerator.get(&device.path)?;
@@ -345,6 +358,52 @@ pub fn eject(
         );
     } else {
         println!("✔ {} desmontado.", device.path);
+    }
+    Ok(())
+}
+
+/// `mount`/`montar`: monta as partições para aparecerem no gerenciador de
+/// arquivos (via udisks, sem senha).
+pub fn mount(b: &Backend, device: &str, allow_non_usb: bool, json: bool) -> Result<()> {
+    let device = b.enumerator.get(device)?;
+    let refusals = safety::check_target(&device, Policy { allow_non_usb });
+    if let Some(r) = refusals
+        .iter()
+        .find(|r| r.is_absolute() || matches!(r, Refusal::NotUsb { .. }))
+    {
+        bail!("não vou montar {}: {}", device.path, r.message());
+    }
+    #[cfg(target_os = "linux")]
+    if usbkeeper_linux::is_root() && !json {
+        eprintln!(
+            "aviso: rodando como root, a montagem vai para /media/root e o seu gerenciador de arquivos não a mostra; rode sem sudo"
+        );
+    }
+    let mounted = b.mounts.mount_all(&device)?;
+    let all: Vec<String> = device
+        .all_mountpoints()
+        .map(String::from)
+        .chain(mounted.iter().cloned())
+        .collect();
+    if json {
+        return crate::print_json(&serde_json::json!({
+            "device": device.path,
+            "mounted": mounted,
+            "mountpoints": all,
+        }));
+    }
+    if all.is_empty() {
+        println!(
+            "{} não tem partição que dê para montar (sem sistema de arquivos reconhecido ou criptografada).",
+            device.path
+        );
+    } else {
+        for m in &mounted {
+            println!("✔ montado em {m}");
+        }
+        if mounted.is_empty() {
+            println!("Já estava montado em {}", all.join(", "));
+        }
     }
     Ok(())
 }

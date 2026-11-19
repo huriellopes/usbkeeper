@@ -3,7 +3,8 @@
 Gerenciador multiplataforma de pendrives e HDs externos: listar, formatar, verificar saúde,
 detectar pendrives **falsificados** (capacidade adulterada) e medir velocidade, com histórico por número de série.
 
-> Status: **M5b**: CLI e **interface gráfica** no Linux, com **guia de ajuda**: listar, formatar, ejetar, **detectar falsificados**,
+> Status: **M6c**: CLI e **interface gráfica** no Linux, com **guia de ajuda**, **assistente de formatação**,
+> **verificar/reparar**, **montar**, **autoteste SMART**, **apagar com segurança**, **imagem do disco**, **gravar ISO** e tema claro/escuro: listar, formatar, ejetar, **detectar falsificados**,
 > velocidade, **saúde (SMART + varredura)**, **histórico** e **laudo HTML**. Windows e macOS chegam nas próximas etapas (ver [Roadmap](#roadmap)).
 
 ## Interface gráfica
@@ -41,6 +42,71 @@ usbkeeper guia mbr          # aceita apelidos: gpt, exfat, fat32, smart, fake, e
 Na janela: **? Ajuda e guia** na barra lateral (com busca) e botões **?** ao lado de cada decisão
 (sistema de arquivos, tabela, teste rápido × completo, SMART…). O conteúdo fica em
 `crates/guide/topics/*.md`.
+
+## Me ajude a escolher (qual formato usar)
+
+```sh
+usbkeeper recomendar sdb --uso tv --arquivos-grandes sim     # misto | windows | linux | aparelho | videogame
+```
+
+Cruza o uso pretendido com o que se sabe do disco (tamanho, se o último teste deu falso, saúde,
+USB 2 limitando) e recomenda sistema de arquivos, tabela e limite, **explicando o porquê**. Na janela,
+“Me ajude a escolher” na aba Formatar preenche o formulário.
+
+## Verificar e reparar
+
+```sh
+sudo usbkeeper reparar sdb --check --unmount    # só verifica, não altera nada
+sudo usbkeeper reparar sdb --unmount            # corrige e verifica de novo (pede a série)
+```
+
+FAT32 (`fsck.vfat`), exFAT (`fsck.exfat`), NTFS (`ntfsfix`, básico; para reparo completo use
+`chkdsk /f` no Windows) e ext2/3/4 (`e2fsck`). O status final do reparo vem de uma **nova
+verificação** feita logo depois. A tabela de partições é só verificada (`sfdisk --verify`).
+
+## Montar e abrir no gerenciador de arquivos
+
+`usbkeeper montar sdb` (ou **Montar** / **Abrir pasta** na janela) monta via udisks, sem senha,
+no mesmo lugar que o gerenciador de arquivos usaria. No Windows e no macOS o próprio sistema monta.
+
+## Autoteste SMART
+
+```sh
+sudo usbkeeper autoteste sda --curto --esperar   # ~2 min; --longo lê a superfície inteira (horas)
+```
+
+O próprio disco se testa no firmware, sem alterar dados. Cancelar aborta o teste no disco. O
+resultado entra no histórico e o `health` mostra os últimos autotestes. Muitas pontes USB e
+pendrives não suportam (o usbkeeper explica).
+
+## Apagar com segurança
+
+```sh
+sudo usbkeeper apagar sdb --verificar --unmount              # zeros, 1 passada, relê e confere
+sudo usbkeeper apagar sdb --aleatorio --passadas 2 --unmount # dados aleatórios
+sudo usbkeeper apagar sdb --descartar --unmount              # TRIM: rápido em SSD/NVMe que aceitem
+```
+
+Mesmas travas do formatar (série, disco do sistema nunca). Em pendrive, cartão e SSD, sobrescrever
+**não garante** apagar as áreas de reserva do controlador: para garantia total, criptografe desde o
+início (veja `usbkeeper guia apagar`). O *secure erase* de firmware não é usado (pode inutilizar o
+disco se interrompido).
+
+## Imagem do disco (backup) e gravar ISO
+
+```sh
+sudo usbkeeper imagem criar sdb -o pendrive.img.zst        # só lê; zstd + .json com SHA-256
+usbkeeper imagem verificar pendrive.img.zst                 # o arquivo continua íntegro?
+sudo usbkeeper imagem restaurar pendrive.img.zst sdb --unmount   # grava e confere o hash
+sudo usbkeeper gravar-iso ubuntu.iso sdb --unmount          # hash de --sha256, .sha256 ou SHA256SUMS
+```
+
+A ISO é conferida antes (se houver hash) e depois de gravar. ISOs do **Windows** são recusadas
+(gravadas byte a byte não dão boot; precisam de preparo especial). Na janela: aba **Backup e ISO**.
+
+## Tema
+
+Na janela, **Sistema / Claro / Escuro** no rodapé da barra lateral; a escolha é lembrada.
 
 ## Remover com segurança
 
@@ -177,7 +243,10 @@ O WSL2 não enxerga USB do Windows. Use [usbipd-win](https://github.com/dorssel/
 - [ ] **M4**: Windows
 - [x] **M5**: GUI Tauri 2
 - [x] **M5b**: guia de ajuda (CLI e janela) e remoção segura em destaque
-- [ ] **M6**: macOS, gravador de ISO, imagem de disco
+- [x] **M6a**: tema, assistente de formatação, verificar/reparar, montar
+- [x] **M6b**: autoteste SMART e apagar com segurança
+- [x] **M6c**: imagem do disco e gravar ISO de boot
+- [ ] **M7**: macOS
 
 ## Licença
 

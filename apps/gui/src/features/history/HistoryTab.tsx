@@ -5,7 +5,7 @@ import type { Event } from "../../lib/bindings/Event";
 import { historyEvents, saveReport } from "../../lib/api";
 import { verdictLabel, verdictTone } from "../../lib/format";
 
-const KIND: Record<string, string> = { fake_check: "fake-check", bench: "velocidade", health: "SMART", scan: "varredura" };
+const KIND: Record<string, string> = { fake_check: "fake-check", bench: "velocidade", health: "SMART", scan: "varredura", repair: "reparo", selftest: "autoteste", wipe: "apagamento", image_create: "imagem", image_restore: "restauração", iso_write: "ISO" };
 
 export function HistoryTab({ view }: { view: DeviceView }) {
   const [events, setEvents] = useState<Event[]>([]);

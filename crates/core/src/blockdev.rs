@@ -82,6 +82,9 @@ pub enum Phase {
     SeqWrite,
     RandWrite,
     Scan,
+    Wipe,
+    SelfTest,
+    Image,
 }
 
 impl Phase {
@@ -99,6 +102,9 @@ impl Phase {
             Phase::SeqWrite => "seq_write",
             Phase::RandWrite => "rand_write",
             Phase::Scan => "scan",
+            Phase::Wipe => "wipe",
+            Phase::SelfTest => "selftest",
+            Phase::Image => "image",
         }
     }
 
@@ -115,6 +121,9 @@ impl Phase {
             Phase::SeqWrite => "escrita sequencial",
             Phase::RandWrite => "escrita aleatória 4K",
             Phase::Scan => "lendo a superfície",
+            Phase::Wipe => "apagando",
+            Phase::SelfTest => "autoteste do disco",
+            Phase::Image => "copiando",
         }
     }
 }
@@ -124,7 +133,13 @@ impl Phase {
     pub fn counts_bytes(self) -> bool {
         matches!(
             self,
-            Phase::Write | Phase::Verify | Phase::SeqRead | Phase::SeqWrite | Phase::Scan
+            Phase::Write
+                | Phase::Verify
+                | Phase::SeqRead
+                | Phase::SeqWrite
+                | Phase::Scan
+                | Phase::Wipe
+                | Phase::Image
         )
     }
 }
@@ -192,6 +207,12 @@ mod tests {
         let b = AlignedBuf::new(8192);
         assert_eq!(b.as_ptr() as usize % ALIGN, 0);
         assert!(b.iter().all(|&x| x == 0));
+    }
+
+    #[test]
+    fn copy_phases_count_bytes() {
+        assert!(Phase::Image.counts_bytes() && Phase::Wipe.counts_bytes());
+        assert!(!Phase::SelfTest.counts_bytes() && !Phase::Probe.counts_bytes());
     }
 
     #[test]

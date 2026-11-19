@@ -30,7 +30,7 @@ mod tests {
     #[test]
     fn exposes_all_topics_as_html() {
         let topics = super::guide_topics();
-        assert_eq!(topics.len(), 12);
+        assert_eq!(topics.len(), usbkeeper_guide::IDS.len());
         assert!(topics.iter().all(|t| t.html.starts_with("<h1>")));
     }
 }

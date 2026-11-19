@@ -18,13 +18,16 @@ describe("DevicePanel", () => {
     render(<DevicePanel view={view({ is_system: true, refusals: [{ kind: "system_disk", mountpoint: "/" }] })} />);
     expect(tab("Verificar").disabled).toBe(true);
     expect(tab("Formatar").disabled).toBe(true);
+    expect(tab("Reparar").disabled).toBe(true);
+    expect(tab("Apagar").disabled).toBe(true);
+    expect(tab("Backup e ISO").disabled).toBe(true);
     expect(tab("Saúde").disabled).toBe(false);
     expect(screen.queryByRole("button", { name: /Remover com segurança/ })).toBeNull();
   });
 
   it("pendrive: todas as abas e Remover com segurança disponíveis", () => {
     render(<DevicePanel view={view()} />);
-    for (const name of ["Visão geral", "Verificar", "Saúde", "Velocidade", "Formatar", "Histórico"]) {
+    for (const name of ["Visão geral", "Verificar", "Saúde", "Velocidade", "Formatar", "Reparar", "Apagar", "Backup e ISO", "Histórico"]) {
       expect(tab(name).disabled).toBe(false);
     }
     expect(screen.getByRole("button", { name: /Remover com segurança/ })).toBeTruthy();

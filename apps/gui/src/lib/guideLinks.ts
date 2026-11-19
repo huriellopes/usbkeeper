@@ -11,6 +11,9 @@ export const GUIDE = {
   health: "saude",
   speed: "velocidade",
   remove: "remover",
+  repair: "reparar",
+  wipe: "apagar",
+  image: "imagem",
   protections: "protecoes",
   glossary: "glossario",
 } as const;

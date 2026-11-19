@@ -91,6 +91,12 @@ pub mod kind {
     pub const BENCH: &str = "bench";
     pub const HEALTH: &str = "health";
     pub const SCAN: &str = "scan";
+    pub const REPAIR: &str = "repair";
+    pub const SELFTEST: &str = "selftest";
+    pub const WIPE: &str = "wipe";
+    pub const IMAGE_CREATE: &str = "image_create";
+    pub const IMAGE_RESTORE: &str = "image_restore";
+    pub const ISO_WRITE: &str = "iso_write";
 }
 
 pub struct History {

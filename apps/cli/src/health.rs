@@ -25,6 +25,21 @@ pub fn health(b: &Backend, args: HealthArgs) -> Result<()> {
         eprintln!("Lendo SMART de {}...", device.path);
     }
     let smart = usbkeeper_smart::read(&device.path);
+    // Últimos autotestes registrados no próprio disco (quando há SMART).
+    let selftests: Vec<usbkeeper_smart::selftest::SelfTestEntry> = smart
+        .device_type
+        .as_deref()
+        .filter(|_| smart.has_smart())
+        .and_then(|dtype| {
+            usbkeeper_smart::selftest::poll(
+                &device.path,
+                dtype,
+                usbkeeper_smart::selftest::SelfTestKind::Short,
+            )
+            .ok()
+        })
+        .map(|s| s.log.into_iter().take(3).collect())
+        .unwrap_or_default();
 
     let scan = if args.scan {
         let mut raw = open_checked(b, &device, false)?;
@@ -62,9 +77,29 @@ pub fn health(b: &Backend, args: HealthArgs) -> Result<()> {
     }
 
     if args.json {
-        crate::print_json(&json!({ "device": device, "smart": smart, "scan": scan }))?;
+        crate::print_json(
+            &json!({ "device": device, "smart": smart, "scan": scan, "selftests": selftests }),
+        )?;
     } else {
         print_smart(&device, &smart);
+        if !selftests.is_empty() {
+            println!("  Últimos autotestes do disco:");
+            for t in &selftests {
+                println!(
+                    "    {} {:<18} {}{}",
+                    match t.passed {
+                        Some(true) => "✔",
+                        Some(false) => "✘",
+                        None => "–",
+                    },
+                    t.kind,
+                    t.status,
+                    t.hours
+                        .map(|h| format!(" (com {h} h de uso)"))
+                        .unwrap_or_default()
+                );
+            }
+        }
         if let Some(s) = &scan {
             print_scan(s);
         } else if !smart.has_smart() && !smart.access_denied {

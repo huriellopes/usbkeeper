@@ -4,6 +4,8 @@
 //! Pendrives e cartões quase nunca têm SMART; HDs/SSDs externos têm, mas só
 //! se o adaptador USB repassar os comandos (SAT ou protocolo próprio da ponte).
 
+pub mod selftest;
+
 use std::path::PathBuf;
 use std::process::Command;
 

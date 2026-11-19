@@ -1,0 +1,5 @@
+{"json_format_version":[1,0],"smartctl":{"exit_status":64},"device":{"type":"sat"},
+ "ata_smart_data":{"self_test":{"status":{"value":119,"string":"completed with read failure","passed":false},
+   "polling_minutes":{"short":2,"extended":110}}},
+ "ata_smart_self_test_log":{"standard":{"revision":1,"table":[
+   {"type":{"value":2,"string":"Extended offline"},"status":{"value":119,"string":"Completed: read failure","passed":false},"lifetime_hours":20000,"lba":123456}]}}}

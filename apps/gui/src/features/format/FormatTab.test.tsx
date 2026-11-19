@@ -5,9 +5,15 @@ import { view } from "../../test/fixtures";
 
 describe("FormatTab", () => {
   it("preenche o limite sugerido e força MBR", () => {
-    render(<FormatTab view={view()} initialMaxBytes={7_000_000_000} onSubmit={() => {}} busy={false} />);
+    render(<FormatTab view={view()} initial={{ maxBytes: 7_000_000_000 }} onSubmit={() => {}} busy={false} />);
     expect((screen.getByLabelText(/Usar só os primeiros/) as HTMLInputElement).value).toBe("7000");
     expect((screen.getByLabelText("Tabela") as HTMLSelectElement).disabled).toBe(true);
+  });
+
+  it("aceita sistema de arquivos e tabela iniciais (assistente)", () => {
+    render(<FormatTab view={view()} initial={{ filesystem: "ntfs", table: "gpt" }} onSubmit={() => {}} busy={false} />);
+    expect((screen.getByLabelText("Sistema de arquivos") as HTMLSelectElement).value).toBe("ntfs");
+    expect((screen.getByLabelText("Tabela") as HTMLSelectElement).value).toBe("gpt");
   });
 
   it("bloqueia rótulo inválido e envia pedido válido", () => {
