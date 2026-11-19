@@ -15,6 +15,7 @@ pub mod repair;
 pub mod safety;
 pub mod scan;
 pub mod units;
+pub mod wipe;
 
 pub use blockdev::{BlockDevice, Phase, Progress};
 pub use error::CoreError;

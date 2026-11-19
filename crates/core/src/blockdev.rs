@@ -82,6 +82,8 @@ pub enum Phase {
     SeqWrite,
     RandWrite,
     Scan,
+    Wipe,
+    SelfTest,
 }
 
 impl Phase {
@@ -99,6 +101,8 @@ impl Phase {
             Phase::SeqWrite => "seq_write",
             Phase::RandWrite => "rand_write",
             Phase::Scan => "scan",
+            Phase::Wipe => "wipe",
+            Phase::SelfTest => "selftest",
         }
     }
 
@@ -115,6 +119,8 @@ impl Phase {
             Phase::SeqWrite => "escrita sequencial",
             Phase::RandWrite => "escrita aleatória 4K",
             Phase::Scan => "lendo a superfície",
+            Phase::Wipe => "apagando",
+            Phase::SelfTest => "autoteste do disco",
         }
     }
 }
@@ -124,7 +130,12 @@ impl Phase {
     pub fn counts_bytes(self) -> bool {
         matches!(
             self,
-            Phase::Write | Phase::Verify | Phase::SeqRead | Phase::SeqWrite | Phase::Scan
+            Phase::Write
+                | Phase::Verify
+                | Phase::SeqRead
+                | Phase::SeqWrite
+                | Phase::Scan
+                | Phase::Wipe
         )
     }
 }
