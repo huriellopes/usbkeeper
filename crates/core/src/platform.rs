@@ -1,6 +1,7 @@
 use serde::Serialize;
 
 use crate::format::FormatRequest;
+use crate::repair::RepairReport;
 use crate::{CoreError, Device};
 
 /// Descobre os discos visíveis no sistema. Cada plataforma tem a sua.
@@ -88,4 +89,15 @@ pub trait Mounts {
 pub trait Ejector {
     /// Desliga o dispositivo para remoção segura (já desmontado).
     fn power_off(&self, device: &Device) -> Result<(), CoreError>;
+}
+
+/// Verifica (`check_only`) ou repara os sistemas de arquivos das partições.
+/// `step(rótulo, feito, total)` é chamado antes de cada partição.
+pub trait Repairer {
+    fn repair(
+        &self,
+        device: &Device,
+        check_only: bool,
+        step: &mut dyn FnMut(&str, u64, u64),
+    ) -> Result<RepairReport, CoreError>;
 }
