@@ -1,0 +1,6 @@
+{"json_format_version":[1,0],"smartctl":{"exit_status":0},"device":{"type":"sat"},
+ "ata_smart_data":{"self_test":{"status":{"value":0,"string":"completed without error","passed":true},
+   "polling_minutes":{"short":2,"extended":110}}},
+ "ata_smart_self_test_log":{"standard":{"revision":1,"table":[
+   {"type":{"value":1,"string":"Short offline"},"status":{"value":0,"string":"Completed without error","passed":true},"lifetime_hours":13451},
+   {"type":{"value":2,"string":"Extended offline"},"status":{"value":0,"string":"Completed without error","passed":true},"lifetime_hours":12000}]}}}
