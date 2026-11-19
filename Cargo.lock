@@ -4220,6 +4220,7 @@ dependencies = [
  "usbkeeper-history",
  "usbkeeper-linux",
  "usbkeeper-smart",
+ "usbkeeper-windows",
  "zstd",
 ]
 

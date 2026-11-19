@@ -299,10 +299,35 @@ fn classify(r: &mut HealthReport, nvme: Option<&Value>) {
 /// demais cobrem adaptadores que ela não reconhece.
 pub const DEVICE_TYPES: [&str; 5] = ["auto", "sat", "usbjmicron", "usbprolific", "usbsunplus"];
 
+/// Como o smartctl chama o disco: no Windows `\\.\PhysicalDriveN` vira
+/// `/dev/pdN`; nos demais sistemas o caminho já serve.
+pub fn smartctl_device(path: &str) -> String {
+    let lower = path.to_ascii_lowercase();
+    match lower.strip_prefix(r"\\.\physicaldrive") {
+        Some(n) if !n.is_empty() && n.chars().all(|c| c.is_ascii_digit()) => format!("/dev/pd{n}"),
+        _ => path.to_string(),
+    }
+}
+
+/// Mensagem quando o smartctl não está instalado.
+pub const NOT_INSTALLED: &str = if cfg!(windows) {
+    "smartctl não encontrado; instale o smartmontools para Windows (winget install smartmontools.smartmontools)"
+} else {
+    "smartctl não encontrado; instale o pacote smartmontools"
+};
+
 pub fn find_smartctl() -> Option<PathBuf> {
     let path = std::env::var_os("PATH").unwrap_or_default();
+    let extra: &[&str] = if cfg!(windows) {
+        &[
+            r"C:\Program Files\smartmontools\bin",
+            r"C:\Program Files (x86)\smartmontools\bin",
+        ]
+    } else {
+        &["/usr/sbin", "/sbin", "/usr/local/sbin"]
+    };
     std::env::split_paths(&path)
-        .chain(["/usr/sbin", "/sbin", "/usr/local/sbin"].map(PathBuf::from))
+        .chain(extra.iter().map(PathBuf::from))
         .map(|d| {
             d.join(if cfg!(windows) {
                 "smartctl.exe"
@@ -317,10 +342,9 @@ pub fn find_smartctl() -> Option<PathBuf> {
 /// nenhum trouxer, o relatório `Unknown` com o motivo da primeira tentativa.
 pub fn read(device_path: &str) -> HealthReport {
     let Some(smartctl) = find_smartctl() else {
-        return HealthReport::unknown(
-            "smartctl não encontrado; instale o pacote smartmontools".into(),
-        );
+        return HealthReport::unknown(NOT_INSTALLED.into());
     };
+    let device_path = &smartctl_device(device_path);
     let mut first: Option<HealthReport> = None;
     for kind in DEVICE_TYPES {
         let out = Command::new(&smartctl)
