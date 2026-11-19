@@ -13,7 +13,7 @@ detectar pendrives **falsificados** (capacidade adulterada) e medir velocidade, 
 | Sistema | Situação | Como instalar |
 |---|---|---|
 | **Linux** (Debian, Ubuntu, Mint) | completo: CLI + janela | repositório APT (abaixo) |
-| **Windows** 10/11 | em andamento: CLI de consulta (listar, info, saúde, velocidade de leitura) | compilar com `cargo` (abaixo); instalador `.msi` na próxima versão |
+| **Windows** 10/11 | CLI completa (a janela vem na próxima versão) | compilar com `cargo` (abaixo); instalador `.msi` na próxima versão |
 | **macOS** | ainda não suportado | previsto no [Roadmap](#roadmap) |
 | **WSL2** | via Linux, com o pendrive repassado pelo `usbipd` | ver [WSL2](#wsl2) |
 
@@ -44,9 +44,20 @@ Remover: `sudo apt remove usbkeeper` (o histórico em `~/.local/share/usbkeeper`
 
 ### Windows 10/11 (em andamento)
 
-Nesta etapa só a **CLI de consulta** funciona: `list`, `info`, `health` (SMART e varredura de
-leitura), `bench` (leitura), `history`, `report`, `recomendar` e `guia`. Formatar, apagar,
-imagem/ISO, reparar, montar e remover chegam na próxima etapa; a janela e o instalador `.msi`, depois.
+A **CLI** faz o mesmo que no Linux: listar, info, saúde (SMART e varredura), velocidade,
+teste de falsificado, **formatar** (FAT32, exFAT, NTFS), reparar (`chkdsk`), apagar, imagem do
+disco, gravar ISO, montar (atribuir letra) e **remover com segurança**. A janela e o instalador
+`.msi` vêm na próxima versão. Não existem no Windows: ext4 (o Windows não lê) e o descarte (TRIM).
+
+**FAT32 acima de 32 GB:** o Windows se recusa a formatar, mas TVs, carros e videogames só leem
+FAT32. O usbkeeper tem um formatador FAT32 próprio e formata pendrives e HDs de qualquer tamanho
+até 2 TB: `usbkeeper format E: --fs fat32 --unmount`.
+
+Antes de gravar, o usbkeeper trava e desmonta todos os volumes do disco e os mantém travados até
+o fim. Se algum estiver em uso (janela do Explorer aberta, arquivo aberto), ele recusa **sem gravar
+nada** e pede para fechar. Como no Linux, gravar num pendrive com letra exige `--unmount`. O
+`remover` faz o mesmo que o ícone "Remover hardware com segurança"; se o Windows recusar, diz quem
+está usando o dispositivo.
 
 Compilar e instalar (PowerShell):
 
@@ -315,7 +326,7 @@ O WSL2 não enxerga USB do Windows. Use [usbipd-win](https://github.com/dorssel/
 - [x] **M2**: `fake-check` (rápido estilo f3probe e completo grava+verifica) e `bench`
 - [x] **M2b**: `format --max-size` para reaproveitar só a capacidade real de um falso (como o f3fix)
 - [x] **M3**: `health` (SMART via smartctl + varredura), histórico SQLite, laudo HTML/PDF
-- [ ] **M4** (M4a base do Windows ✔): Windows
+- [ ] **M4** (M4a base ✔, M4b1 gravação ✔, M4b2 formatar/reparar/montar/remover ✔; falta a janela + .msi): Windows
 - [x] **M5**: GUI Tauri 2
 - [x] **M5b**: guia de ajuda (CLI e janela) e remoção segura em destaque
 - [x] **M6a**: tema, assistente de formatação, verificar/reparar, montar
