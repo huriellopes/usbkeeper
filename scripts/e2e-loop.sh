@@ -289,6 +289,36 @@ if [[ ${E2E_SELFTEST:-0} == 1 ]]; then
   expect "autoteste curto real em $disk: $v" "$v" '.v == "passed"'
 fi
 
+# ---------------------------------------------------------------- M6c
+# Imagem do disco (criar → apagar → restaurar → mesmo hash) e gravar ISO.
+dd if=/dev/urandom of="$LOOP" bs=1M count=32 conv=notrunc status=none
+orig=$(sha256sum < "$LOOP" | cut -d' ' -f1)
+m=$("$BIN" imagem criar "$LOOP" -o "$WORK/pen.img.zst" --json | jq -c . || echo null)
+expect "imagem criada com o hash do disco" "$m" ".meta.sha256 == \"$orig\" and .meta.compressed == true and .file_bytes < 100000000"
+v=$("$BIN" imagem verificar "$WORK/pen.img.zst" --json | jq -c . || echo null)
+expect "imagem verificar confere com o .json" "$v" '.matches_meta == true'
+"$BIN" apagar "$LOOP" --allow-non-usb --yes-i-know "$LOOP" --json >/dev/null 2>&1
+r=$("$BIN" imagem restaurar "$WORK/pen.img.zst" "$LOOP" --allow-non-usb --yes-i-know "$LOOP" --json | jq -c . || echo null)
+expect "restaurar verifica o hash" "$r" '.verified == true'
+[[ $(sha256sum < "$LOOP" | cut -d' ' -f1) == "$orig" ]] && ok "disco restaurado idêntico ao original (sha256sum)" || bad "disco restaurado difere"
+
+if command -v xorriso >/dev/null; then
+  mkdir -p "$WORK/isoroot" && echo "usbkeeper" > "$WORK/isoroot/leia.txt"
+  xorriso -as mkisofs -o "$WORK/teste.iso" -V TESTE_LINUX --protective-msdos-label "$WORK/isoroot" >/dev/null 2>&1
+  h=$(sha256sum "$WORK/teste.iso" | cut -d' ' -f1)
+  g=$("$BIN" gravar-iso "$WORK/teste.iso" "$LOOP" --sha256 "$h" --allow-non-usb --yes-i-know "$LOOP" --json | jq -c . || echo null)
+  expect "gravar ISO híbrida com hash certo" "$g" '.verified == true'
+  cmp -s -n "$(stat -c %s "$WORK/teste.iso")" "$WORK/teste.iso" "$LOOP" && ok "ISO gravada idêntica (cmp)" || bad "ISO gravada difere"
+  out=$("$BIN" gravar-iso "$WORK/teste.iso" "$LOOP" --sha256 "$(printf '0%.0s' {1..64})" --allow-non-usb --yes-i-know "$LOOP" 2>&1) \
+    && bad "gravou com hash errado" || { [[ $out == *"não confere"* ]] && ok "hash errado recusado" || bad "hash errado: $out"; }
+  cp "$WORK/teste.iso" "$WORK/win.iso"
+  printf 'CCCOMA_X64FRE_PT-BR_DV9         ' | dd of="$WORK/win.iso" bs=1 seek=32808 conv=notrunc status=none
+  out=$("$BIN" gravar-iso "$WORK/win.iso" "$LOOP" --allow-non-usb --yes-i-know "$LOOP" 2>&1) \
+    && bad "gravou ISO do Windows sem --forcar" || { [[ $out == *Windows* ]] && ok "ISO do Windows recusada com explicação" || bad "windows: $out"; }
+else
+  echo "(sem xorriso: pulando os testes de ISO)"
+fi
+
 # ---------------------------------------------------------------- M3
 make_fake bad badblock 64 64
 h=$("$BIN" health "$TOP" --scan --json | jq -c . || echo null)
