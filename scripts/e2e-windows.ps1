@@ -75,26 +75,26 @@ try {
 
   # ---------------------------------------------------------------- M4b1: gravar
   $dp = "\\.\PhysicalDrive$n"
-  $G = @('--allow-non-usb', '--unmount', '--yes-i-know', $dp)
+  $Guard = @('--allow-non-usb', '--unmount', '--yes-i-know', $dp)
 
   # volume em uso → recusa sem gravar
   $fh = [IO.File]::Open("${letter}:\em-uso.txt", 'Create', 'ReadWrite', 'None')
-  try { $out = Usbk apagar "PhysicalDrive$n" @G } finally { $fh.Close() }
+  try { $out = Usbk apagar "PhysicalDrive$n" @Guard } finally { $fh.Close() }
   Check ($LASTEXITCODE -ne 0 -and ($out -join ' ') -match 'em uso') "volume em uso: apagar recusa sem gravar"
   Check ((Get-Volume -DriveLetter $letter).FileSystemLabel -eq 'E2E USBK') "volume intacto depois da recusa"
 
-  $r = UsbkJson fake-check "PhysicalDrive$n" @G --json
+  $r = UsbkJson fake-check "PhysicalDrive$n" @Guard --json
   Check ($r -and $r.report.verdict -eq 'genuine') "fake-check rápido: genuíno"
-  $r = UsbkJson fake-check "PhysicalDrive$n" --full @G --json
+  $r = UsbkJson fake-check "PhysicalDrive$n" --full @Guard --json
   Check ($r -and $r.report.verdict -eq 'genuine') "fake-check completo: genuíno"
-  $b = UsbkJson bench "PhysicalDrive$n" --write --sample-mb 32 @G --json
+  $b = UsbkJson bench "PhysicalDrive$n" --write --sample-mb 32 @Guard --json
   Check ($b -and $b.bench.seq_write_mbps -gt 0 -and $b.bench.rand_write_iops -gt 0) "bench com escrita"
 
-  $w = UsbkJson apagar "PhysicalDrive$n" --verificar @G --json
+  $w = UsbkJson apagar "PhysicalDrive$n" --verificar @Guard --json
   Check ($w -and $w.report.verified -eq $true -and $w.report.mismatched_bytes -eq 0) "apagar com zeros e verificar"
   Update-Disk -Number $n
   Check ((Get-Disk -Number $n).PartitionStyle -eq 'RAW') "depois de apagar o Windows vê o disco vazio (RAW)"
-  $out = Usbk apagar "PhysicalDrive$n" --descartar @G
+  $out = Usbk apagar "PhysicalDrive$n" --descartar @Guard
   Check ($LASTEXITCODE -ne 0 -and ($out -join ' ') -match 'TRIM') "TRIM recusado no Windows antes da série"
 
   # imagem: cria volume com arquivo, imagem → apagar → restaurar
@@ -108,7 +108,7 @@ try {
   Remove-Item $img, "$img.json" -ErrorAction SilentlyContinue
   $m = UsbkJson imagem criar "PhysicalDrive$n" -o $img --json
   Check ($m -and $m.meta.compressed -and $m.meta.size_bytes -eq 256MB) "imagem criada (zstd, 256 MiB)"
-  UsbkJson apagar "PhysicalDrive$n" @G --json | Out-Null
+  UsbkJson apagar "PhysicalDrive$n" @Guard --json | Out-Null
   $rr = UsbkJson imagem restaurar $img "PhysicalDrive$n" --allow-non-usb --yes-i-know $dp --json
   Check ($rr -and $rr.verified -eq $true) "restaurar confere o SHA-256"
   Update-Disk -Number $n
@@ -125,16 +125,16 @@ try {
   for ($k = 40000; $k -lt $bytes.Length; $k++) { $bytes[$k] = [byte]($k % 251) }
   [IO.File]::WriteAllBytes($iso, $bytes)
   $hash = (Get-FileHash $iso -Algorithm SHA256).Hash.ToLower()
-  $g = UsbkJson gravar-iso $iso "PhysicalDrive$n" --sha256 $hash @G --json
+  $g = UsbkJson gravar-iso $iso "PhysicalDrive$n" --sha256 $hash @Guard --json
   Check ($g -and $g.verified -eq $true -and $g.report.sha256 -eq $hash) "gravar ISO híbrida conferindo o hash"
   $win = Join-Path $work 'win.iso'
   [Text.Encoding]::ASCII.GetBytes('CCCOMA_X64FRE_PT-BR_DV9'.PadRight(32)).CopyTo($bytes, 32808)
   [IO.File]::WriteAllBytes($win, $bytes)
-  $out = Usbk gravar-iso $win "PhysicalDrive$n" @G
+  $out = Usbk gravar-iso $win "PhysicalDrive$n" @Guard
   Check ($LASTEXITCODE -ne 0 -and ($out -join ' ') -match 'Windows') "ISO do Windows recusada"
 
   # ainda na M4b2
-  $out = Usbk format "PhysicalDrive$n" --fs exfat @G
+  $out = Usbk format "PhysicalDrive$n" --fs exfat @Guard
   Check ($LASTEXITCODE -ne 0 -and ($out -join ' ') -match 'M4b2') "format responde que chega na M4b2"
   $out = Usbk eject "PhysicalDrive$n" --allow-non-usb
   Check ($LASTEXITCODE -ne 0 -and ($out -join ' ') -match 'M4b2') "remover responde que chega na M4b2"
