@@ -44,10 +44,14 @@ pub struct FormatArgs {
 
 /// Recusa cedo (antes de mostrar plano ou pedir confirmação). Disco montado
 /// só passa se `--unmount` foi pedido.
+/// Antes de pedir a série: no Windows as operações que gravam vêm na M4b.
+#[cfg(windows)]
+pub fn precheck(_device: &Device, _guard: &Guard) -> Result<()> {
+    anyhow::bail!(crate::backend::unsupported::M4B)
+}
+
+#[cfg(not(windows))]
 pub fn precheck(device: &Device, guard: &Guard) -> Result<()> {
-    // Antes de pedir a série: no Windows as operações que gravam vêm na M4b.
-    #[cfg(windows)]
-    anyhow::bail!(crate::backend::unsupported::M4B);
     let refusals: Vec<Refusal> = safety::check_target(device, guard.policy())
         .into_iter()
         .filter(|r| !(guard.unmount && matches!(r, Refusal::Mounted { .. })))
