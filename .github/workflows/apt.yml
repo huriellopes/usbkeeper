@@ -1,0 +1,68 @@
+name: apt
+
+# Publica o repositório APT (GitHub Pages, branch gh-pages) com os .deb
+# anexados aos releases. Roda a cada release publicado ou manualmente.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apt
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ferramentas
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq apt-utils
+
+      - name: Chave de assinatura
+        env:
+          APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
+        run: |
+          test -n "$APT_SIGNING_KEY" || { echo "falta o segredo APT_SIGNING_KEY"; exit 1; }
+          echo "$APT_SIGNING_KEY" | gpg --batch --quiet --import
+          gpg --list-secret-keys "$(cat packaging/apt/FINGERPRINT)" >/dev/null
+
+      - name: Branch gh-pages
+        run: |
+          url="https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
+          if git ls-remote --exit-code --heads "$url" gh-pages >/dev/null; then
+            git clone -q --depth 1 --branch gh-pages "$url" site
+          else
+            mkdir site && git -C site init -q -b gh-pages && git -C site remote add origin "$url"
+          fi
+
+      - name: Baixar e conferir os .deb dos releases
+        run: |
+          mkdir -p debs
+          for tag in $(gh release list --repo "$REPO" --exclude-drafts --exclude-pre-releases --limit 50 --json tagName -q '.[].tagName'); do
+            gh release download "$tag" --repo "$REPO" --pattern '*_amd64.deb*' --dir "debs/$tag" --skip-existing 2>/dev/null || continue
+            (cd "debs/$tag" && for s in *.sha256; do sha256sum -c "$s"; done)
+            mv debs/"$tag"/*_amd64.deb debs/ 2>/dev/null || true
+          done
+          ls -la debs/*.deb
+
+      - name: Gerar e assinar o repositório
+        run: |
+          scripts/apt-repo.sh site debs "$(cat packaging/apt/FINGERPRINT)"
+          cp packaging/apt/index.html site/index.html
+          touch site/.nojekyll
+
+      - name: Publicar
+        run: |
+          cd site
+          git add -A
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -q -m "apt: ${{ github.event.release.tag_name || 'atualização manual' }}" || { echo "nada mudou"; exit 0; }
+          git push -q origin gh-pages

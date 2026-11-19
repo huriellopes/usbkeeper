@@ -7,6 +7,22 @@ detectar pendrives **falsificados** (capacidade adulterada) e medir velocidade, 
 > **verificar/reparar**, **montar**, **autoteste SMART**, **apagar com segurança**, **imagem do disco**, **gravar ISO** e tema claro/escuro: listar, formatar, ejetar, **detectar falsificados**,
 > velocidade, **saúde (SMART + varredura)**, **histórico** e **laudo HTML**. Windows e macOS chegam nas próximas etapas (ver [Roadmap](#roadmap)).
 
+## Instalar (Debian/Ubuntu/Mint)
+
+Pelo repositório APT (atualiza junto com o sistema no `sudo apt upgrade`):
+
+```sh
+sudo install -d -m 0755 /etc/apt/keyrings
+curl -fsSL https://huriellopes.github.io/usbkeeper/apt/usbkeeper.gpg | sudo tee /etc/apt/keyrings/usbkeeper.gpg >/dev/null
+echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/usbkeeper.gpg] https://huriellopes.github.io/usbkeeper/apt stable main" \
+  | sudo tee /etc/apt/sources.list.d/usbkeeper.list
+sudo apt update && sudo apt install usbkeeper
+```
+
+Requer amd64 com Ubuntu 24.04+, Mint 22+ ou Debian 13+. Impressão digital da chave:
+`70E1 1B52 B3A3 FBB9 C0EE A95F 4695 DA6D E72E 8FAF`. O `.deb` avulso (com `.sha256`) também
+está em cada [release](https://github.com/huriellopes/usbkeeper/releases).
+
 ## Interface gráfica
 
 ```sh
