@@ -2,6 +2,10 @@
 
 use usbkeeper_core::{BlockDevice, CoreError, Ejector, Enumerator, Formatter, Mounts, Repairer};
 
+/// Resposta no Windows às operações que chegam na M4b.
+pub const WINDOWS_NEXT: &str = "no Windows esta operação chega na próxima etapa (M4b); \
+     por enquanto funcionam list, info, health, bench (leitura), history, report, recomendar e guia";
+
 pub type OpenRaw = fn(&str, bool) -> Result<Box<dyn BlockDevice>, CoreError>;
 
 pub struct Backend {
@@ -35,7 +39,7 @@ pub fn backend(include_virtual: bool) -> Backend {
 #[cfg(windows)]
 pub fn backend(include_virtual: bool) -> Backend {
     use usbkeeper_windows::{RawDevice, WindowsEnumerator};
-    let next = || Box::new(unsupported::Unsupported(unsupported::M4B));
+    let next = || Box::new(unsupported::Unsupported(WINDOWS_NEXT));
     Backend {
         enumerator: Box::new(WindowsEnumerator { include_virtual }),
         formatter: next(),
@@ -44,7 +48,7 @@ pub fn backend(include_virtual: bool) -> Backend {
         repairer: next(),
         open_raw: |path, write| {
             if write {
-                return Err(CoreError::Backend(unsupported::M4B.into()));
+                return Err(CoreError::Backend(WINDOWS_NEXT.into()));
             }
             Ok(Box::new(RawDevice::open(path, false)?))
         },
@@ -71,9 +75,6 @@ pub mod unsupported {
         format::FormatRequest,
     };
 
-    #[cfg_attr(not(windows), allow(dead_code))]
-    pub const M4B: &str = "no Windows esta operação chega na próxima etapa (M4b); \
-         por enquanto funcionam list, info, health, bench (leitura), history, report, recomendar e guia";
     #[cfg_attr(windows, allow(dead_code))]
     pub const LATER: &str = "plataforma ainda não suportada (macOS chega numa próxima etapa)";
 
