@@ -235,7 +235,7 @@ steps=$("$BIN" format "$LOOP" --fs fat32 --allow-non-usb --yes-i-know "$LOOP" --
 # ---------------------------------------------------------------- M5b
 # Guia e remoção segura.
 n=$("$BIN" guia | grep -cE '^  [a-z-]+ +[[:upper:]]' || true)
-(( n == 14 )) && ok "guia lista 14 tópicos" || bad "guia lista $n tópicos"
+(( n == 15 )) && ok "guia lista 15 tópicos" || bad "guia lista $n tópicos"
 "$BIN" guia gpt | head -1 | grep -q "MBR × GPT" && ok "guia aceita apelido (gpt)" || bad "guia gpt"
 mount "${LOOP}p1" "$WORK/mnt"
 sleep 300 < /dev/null > "$WORK/mnt/segura.txt" &

@@ -13,6 +13,7 @@ export const GUIDE = {
   remove: "remover",
   repair: "reparar",
   wipe: "apagar",
+  image: "imagem",
   protections: "protecoes",
   glossary: "glossario",
 } as const;
