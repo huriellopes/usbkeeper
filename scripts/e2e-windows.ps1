@@ -7,10 +7,24 @@ $ErrorActionPreference = 'Stop'
 $Bin = (Resolve-Path $Bin).Path
 $script:ok = 0; $script:bad = 0
 function Ok($m)  { $script:ok++;  Write-Host "ok   $m" }
-function Bad($m) { $script:bad++; Write-Host "FALHA $m" -ForegroundColor Red }
-function Check($cond, $m) { if ($cond) { Ok $m } else { Bad $m } }
-function Usbk { & $Bin @args 2>&1 | ForEach-Object { "$_" } }
-function UsbkJson { $out = & $Bin @args 2>$null; if ($LASTEXITCODE -ne 0) { return $null }; ($out -join "`n") | ConvertFrom-Json }
+function Bad($m) {
+  $script:bad++; Write-Host "FALHA $m" -ForegroundColor Red
+  if ($script:last) { Write-Host "      saída: $(($script:last -join ' ') -replace '\s+', ' ')" }
+}
+function Check($cond, $m) { if ($cond) { Ok $m } else { Bad $m }; $script:last = $null }
+function Usbk {
+  $script:last = @(& $Bin @args 2>&1 | ForEach-Object { "$_" })
+  $script:last
+}
+function UsbkJson {
+  $err = New-TemporaryFile
+  $out = & $Bin @args 2>$err
+  $code = $LASTEXITCODE
+  $script:last = @("exit=$code") + @(Get-Content $err) + @($out | Select-Object -First 5)
+  Remove-Item $err
+  if ($code -ne 0) { return $null }
+  ($out -join "`n") | ConvertFrom-Json
+}
 
 $work = Join-Path $env:RUNNER_TEMP 'usbk-e2e'
 if (-not $env:RUNNER_TEMP) { $work = Join-Path $env:TEMP 'usbk-e2e' }

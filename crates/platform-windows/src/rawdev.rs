@@ -242,15 +242,16 @@ impl BlockDevice for RawDevice {
 
     fn flush(&mut self) -> io::Result<()> {
         // Sem buffer do sistema (NO_BUFFERING + WRITE_THROUGH); garante o cache do disco.
-        self.file.sync_all()?;
-        if self.wrote {
-            // Faz o Windows reler a tabela de partições (equivale ao udevadm settle).
-            let _ = ioctl(&self.file, IOCTL_DISK_UPDATE_PROPERTIES, &mut []);
-        }
-        Ok(())
+        // A releitura da tabela (IOCTL_DISK_UPDATE_PROPERTIES) fica para o Drop:
+        // ao reler, o Windows monta o que foi gravado e pode escrever nele (bit
+        // de "sujo" do NTFS, assinatura de disco MBR), o que estragaria a
+        // conferência por hash feita logo depois do flush.
+        self.file.sync_all()
     }
 }
 
+/// Ao soltar o disco (depois de gravar e conferir): faz o Windows reler a
+/// tabela de partições, como o `udevadm settle` no Linux.
 impl Drop for RawDevice {
     fn drop(&mut self) {
         if self.wrote {
