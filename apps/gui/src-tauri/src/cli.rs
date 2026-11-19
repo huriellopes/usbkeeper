@@ -48,6 +48,19 @@ pub enum OpRequest {
         verify: bool,
         discard: bool,
     },
+    ImageCreate {
+        device: String,
+        output: String,
+    },
+    ImageRestore {
+        device: String,
+        image: String,
+    },
+    BurnIso {
+        device: String,
+        iso: String,
+        sha256: Option<String>,
+    },
 }
 
 impl OpRequest {
@@ -60,7 +73,10 @@ impl OpRequest {
             | OpRequest::Eject { device }
             | OpRequest::Repair { device, .. }
             | OpRequest::SelfTest { device, .. }
-            | OpRequest::Wipe { device, .. } => device,
+            | OpRequest::Wipe { device, .. }
+            | OpRequest::ImageCreate { device, .. }
+            | OpRequest::ImageRestore { device, .. }
+            | OpRequest::BurnIso { device, .. } => device,
         }
     }
 
@@ -74,6 +90,9 @@ impl OpRequest {
             OpRequest::Repair { .. } => "repair",
             OpRequest::SelfTest { .. } => "selftest",
             OpRequest::Wipe { .. } => "wipe",
+            OpRequest::ImageCreate { .. } => "image_create",
+            OpRequest::ImageRestore { .. } => "image_restore",
+            OpRequest::BurnIso { .. } => "burn_iso",
         }
     }
 
@@ -185,6 +204,37 @@ pub fn args(req: &OpRequest, token: &str, allow_non_usb: bool) -> Vec<String> {
                 if *verify {
                     a.push("--verificar".into());
                 }
+            }
+            confirm(&mut a);
+        }
+        OpRequest::ImageCreate { device, output } => {
+            // Só lê o disco; o diálogo de salvar já perguntou sobre sobrescrever.
+            a.extend([
+                "image".into(),
+                "create".into(),
+                device.clone(),
+                "-o".into(),
+                output.clone(),
+                "--sobrescrever".into(),
+            ]);
+        }
+        OpRequest::ImageRestore { device, image } => {
+            a.extend([
+                "image".into(),
+                "restore".into(),
+                image.clone(),
+                device.clone(),
+            ]);
+            confirm(&mut a);
+        }
+        OpRequest::BurnIso {
+            device,
+            iso,
+            sha256,
+        } => {
+            a.extend(["burn-iso".into(), iso.clone(), device.clone()]);
+            if let Some(h) = sha256.as_deref().map(str::trim).filter(|h| !h.is_empty()) {
+                a.extend(["--sha256".into(), h.to_string()]);
             }
             confirm(&mut a);
         }
@@ -445,6 +495,57 @@ mod tests {
         );
         assert!(d.contains(&"--descartar".to_string()));
         assert!(!d.contains(&"--aleatorio".to_string()) && !d.contains(&"--passadas".to_string()));
+    }
+
+    #[test]
+    fn image_and_iso_args() {
+        let a = args(
+            &OpRequest::ImageCreate {
+                device: "/dev/sdb".into(),
+                output: "/home/ana/pen.img.zst".into(),
+            },
+            "ABC",
+            false,
+        );
+        assert_eq!(
+            a[..6],
+            s(&[
+                "image",
+                "create",
+                "/dev/sdb",
+                "-o",
+                "/home/ana/pen.img.zst",
+                "--sobrescrever"
+            ])
+        );
+        assert!(
+            !a.contains(&"--yes-i-know".to_string()),
+            "criar imagem só lê"
+        );
+        let a = args(
+            &OpRequest::ImageRestore {
+                device: "/dev/sdb".into(),
+                image: "/home/ana/pen.img.zst".into(),
+            },
+            "ABC",
+            false,
+        );
+        assert_eq!(
+            a[..4],
+            s(&["image", "restore", "/home/ana/pen.img.zst", "/dev/sdb"])
+        );
+        assert!(a.windows(2).any(|w| w == ["--yes-i-know", "ABC"]));
+        let a = args(
+            &OpRequest::BurnIso {
+                device: "/dev/sdb".into(),
+                iso: "/home/ana/x.iso".into(),
+                sha256: Some("  ".into()),
+            },
+            "ABC",
+            false,
+        );
+        assert!(!a.contains(&"--sha256".to_string()), "hash vazio não vai");
+        assert!(a.windows(2).any(|w| w == ["--yes-i-know", "ABC"]));
     }
 
     #[test]

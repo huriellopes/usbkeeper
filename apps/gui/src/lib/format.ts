@@ -18,12 +18,12 @@ export function duration(secs: number): string {
 
 const LABELS: Record<string, string> = {
   genuine: "genuíno", fake: "FALSO", damaged: "defeito", good: "saudável", warning: "atenção",
-  failing: "FALHANDO", unknown: "sem SMART", clean: "sem erros", unreadable: "ILEGÍVEL", fixed: "corrigido", errors: "com erros", passed: "aprovado", failed: "REPROVADO", wiped: "apagado", verify_failed: "verificação falhou", discarded: "descartado",
+  failing: "FALHANDO", unknown: "sem SMART", clean: "sem erros", unreadable: "ILEGÍVEL", fixed: "corrigido", errors: "com erros", passed: "aprovado", failed: "REPROVADO", wiped: "apagado", verify_failed: "verificação falhou", discarded: "descartado", created: "criada", restored: "restaurado", written: "gravada",
 };
 export const verdictLabel = (v?: string | null) => (v ? LABELS[v] ?? v : "");
 
 export function verdictTone(v?: string | null): "ok" | "warn" | "bad" | "muted" {
-  if (v === "genuine" || v === "good" || v === "clean" || v === "fixed" || v === "passed" || v === "wiped" || v === "discarded") return "ok";
+  if (v === "genuine" || v === "good" || v === "clean" || v === "fixed" || v === "passed" || v === "wiped" || v === "discarded" || v === "created" || v === "restored" || v === "written") return "ok";
   if (v === "warning" || v === "damaged") return "warn";
   if (v === "fake" || v === "failing" || v === "unreadable" || v === "errors" || v === "failed" || v === "verify_failed") return "bad";
   return "muted";

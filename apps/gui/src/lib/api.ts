@@ -27,3 +27,4 @@ export const advise = (device: string, usage: Usage, bigFiles: BigFiles) =>
   invoke<Advice>("advise", { device, usage, bigFiles });
 export const mountDevice = (path: string) => invoke<string[]>("mount_device", { path });
 export const openFolder = (path: string, mountpoint: string) => invoke<void>("open_folder", { path, mountpoint });
+export const imageMeta = (path: string) => invoke<Record<string, unknown> | null>("image_meta", { path });

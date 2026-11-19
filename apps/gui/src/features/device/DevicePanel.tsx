@@ -15,11 +15,12 @@ import { useOperation } from "../ops/useOperation";
 import { Overview } from "./Overview";
 import { RepairTab } from "../repair/RepairTab";
 import { WipeTab } from "../wipe/WipeTab";
+import { ImageTab } from "../image/ImageTab";
 import { InUseCard } from "../remove/InUseCard";
 import { RemoveButton } from "../remove/RemoveButton";
 import { MountButton } from "../mount/MountButton";
 
-export type TabId = "overview" | "check" | "health" | "bench" | "format" | "repair" | "wipe" | "history";
+export type TabId = "overview" | "check" | "health" | "bench" | "format" | "repair" | "wipe" | "image" | "history";
 export const TABS: { id: TabId; label: string; destructive: boolean }[] = [
   { id: "overview", label: "Visão geral", destructive: false },
   { id: "check", label: "Verificar", destructive: true },
@@ -28,6 +29,7 @@ export const TABS: { id: TabId; label: string; destructive: boolean }[] = [
   { id: "format", label: "Formatar", destructive: true },
   { id: "repair", label: "Reparar", destructive: true },
   { id: "wipe", label: "Apagar", destructive: true },
+  { id: "image", label: "Backup e ISO", destructive: true },
   { id: "history", label: "Histórico", destructive: false },
 ];
 
@@ -165,6 +167,7 @@ export function DevicePanel({ view }: { view: DeviceView }) {
         )}
         {tab === "repair" && <RepairTab view={view} />}
         {tab === "wipe" && <WipeTab view={view} onFormat={() => { setFormatInitial({}); setTab("format"); }} />}
+        {tab === "image" && <ImageTab view={view} />}
         {tab === "history" && <HistoryTab view={view} />}
       </div>
       {formatOp.confirm && <ConfirmDialog token={view.confirmation_token} confirmLabel="Formatar" {...formatOp.confirm} />}

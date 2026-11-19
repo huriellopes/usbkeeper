@@ -285,6 +285,13 @@ pub fn open_folder(path: String, mountpoint: String) -> Result<(), String> {
         .map_err(|e| format!("não foi possível abrir o gerenciador de arquivos: {e}"))
 }
 
+/// Lê `<imagem>.json` (modelo, tamanho, data, hash) para mostrar antes de restaurar.
+#[tauri::command]
+pub fn image_meta(path: String) -> Option<serde_json::Value> {
+    let text = std::fs::read_to_string(format!("{path}.json")).ok()?;
+    serde_json::from_str(&text).ok()
+}
+
 #[tauri::command]
 pub fn history_events(key: String) -> Result<Vec<Event>, String> {
     match open_history() {
