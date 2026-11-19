@@ -232,6 +232,59 @@ pub fn advise(device: String, usage: Usage, big_files: BigFiles) -> Result<Advic
     ))
 }
 
+/// Só abre no gerenciador de arquivos um ponto de montagem do próprio
+/// disco; nunca um caminho arbitrário vindo da interface.
+pub fn allowed_mountpoint(device: &Device, mountpoint: &str) -> bool {
+    mountpoint.starts_with('/') && device.all_mountpoints().any(|m| m == mountpoint)
+}
+
+fn find_device(path: &str) -> Result<Device, String> {
+    enumerate()?
+        .into_iter()
+        .find(|d| d.path == path)
+        .ok_or_else(|| format!("{path} não está mais conectado"))
+}
+
+/// Monta as partições (udisks, sem senha) para aparecerem no gerenciador de arquivos.
+#[tauri::command]
+pub fn mount_device(path: String) -> Result<Vec<String>, String> {
+    let dev = find_device(&path)?;
+    let refusals = safety::check_target(
+        &dev,
+        Policy {
+            allow_non_usb: show_virtual(),
+        },
+    );
+    if let Some(r) = refusals
+        .iter()
+        .find(|r| r.is_absolute() || matches!(r, Refusal::NotUsb { .. }))
+    {
+        return Err(r.message());
+    }
+    #[cfg(target_os = "linux")]
+    {
+        use usbkeeper_core::Mounts;
+        usbkeeper_linux::LinuxMounts
+            .mount_all(&dev)
+            .map_err(|e| e.to_string())
+    }
+    #[cfg(not(target_os = "linux"))]
+    Err("montar ainda não é suportado nesta plataforma".into())
+}
+
+#[tauri::command]
+pub fn open_folder(path: String, mountpoint: String) -> Result<(), String> {
+    let dev = find_device(&path)?;
+    if !allowed_mountpoint(&dev, &mountpoint) {
+        return Err("esse caminho não é um ponto de montagem deste disco".into());
+    }
+    std::process::Command::new("xdg-open")
+        .arg(&mountpoint)
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| format!("não foi possível abrir o gerenciador de arquivos: {e}"))
+}
+
 #[tauri::command]
 pub fn history_events(key: String) -> Result<Vec<Event>, String> {
     match open_history() {
@@ -284,6 +337,15 @@ mod tests {
         assert_eq!(v.confirmation_token, "ABC");
         let v = device_view(dev(Transport::Usb, ""), &[], None);
         assert!(!v.is_system && v.refusals.is_empty());
+    }
+
+    #[test]
+    fn only_own_mountpoints_can_be_opened() {
+        let d = dev(Transport::Usb, "/media/ana/PEN");
+        assert!(allowed_mountpoint(&d, "/media/ana/PEN"));
+        assert!(!allowed_mountpoint(&d, "/etc"));
+        assert!(!allowed_mountpoint(&d, "/media/ana/PEN/../../.."));
+        assert!(!allowed_mountpoint(&d, "media/ana/PEN"));
     }
 
     #[test]

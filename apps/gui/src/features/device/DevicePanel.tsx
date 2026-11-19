@@ -16,6 +16,7 @@ import { Overview } from "./Overview";
 import { RepairTab } from "../repair/RepairTab";
 import { InUseCard } from "../remove/InUseCard";
 import { RemoveButton } from "../remove/RemoveButton";
+import { MountButton } from "../mount/MountButton";
 
 export type TabId = "overview" | "check" | "health" | "bench" | "format" | "repair" | "history";
 export const TABS: { id: TabId; label: string; destructive: boolean }[] = [
@@ -61,7 +62,10 @@ export function DevicePanel({ view }: { view: DeviceView }) {
           </div>
           {!view.is_system && d.transport === "usb" && (
             <div className="flex flex-col items-end gap-1">
-              <RemoveButton view={view} />
+              <div className="flex items-start gap-2">
+                <MountButton view={view} />
+                <RemoveButton view={view} />
+              </div>
               {ejectOp.error && <span className="text-sm" style={{ color: "var(--bad)" }}>{ejectOp.error}</span>}
             </div>
           )}
