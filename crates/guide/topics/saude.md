@@ -34,7 +34,7 @@ HDs e SSDs sabem se testar sozinhos, no próprio firmware. O usbkeeper dispara o
 - **Curto** (cerca de 2 minutos): testa a parte elétrica e mecânica e lê uma amostra da superfície. Bom para uma conferência rápida.
 - **Longo** (de dezenas de minutos a horas): lê a superfície inteira. Use quando suspeitar de defeito ou antes de confiar um backup a um disco usado.
 
-O autoteste **não altera nenhum dado** e pode ser feito com o disco em uso. O resultado fica gravado no próprio disco: “Completed without error” é aprovado; “read failure” ou parecido significa que o disco achou setores que não consegue ler, e é hora de copiar os dados e trocar o disco. Muitas pontes USB não repassam o comando de autoteste; nesse caso o usbkeeper avisa.
+O autoteste, curto ou longo, **não altera nenhum dado** e pode ser feito com o disco em uso. O resultado fica gravado no próprio disco: “Completed without error” é aprovado; “read failure” ou parecido significa que o disco achou setores que não consegue ler, e é hora de copiar os dados e trocar o disco. Muitas pontes USB não repassam o comando de autoteste; nesse caso o usbkeeper avisa.
 
 ## Quando trocar
 
