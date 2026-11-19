@@ -139,6 +139,7 @@ impl Phase {
                 | Phase::SeqWrite
                 | Phase::Scan
                 | Phase::Wipe
+                | Phase::Image
         )
     }
 }
@@ -206,6 +207,12 @@ mod tests {
         let b = AlignedBuf::new(8192);
         assert_eq!(b.as_ptr() as usize % ALIGN, 0);
         assert!(b.iter().all(|&x| x == 0));
+    }
+
+    #[test]
+    fn copy_phases_count_bytes() {
+        assert!(Phase::Image.counts_bytes() && Phase::Wipe.counts_bytes());
+        assert!(!Phase::SelfTest.counts_bytes() && !Phase::Probe.counts_bytes());
     }
 
     #[test]
