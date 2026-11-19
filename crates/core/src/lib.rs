@@ -7,6 +7,7 @@ pub mod blockdev;
 pub mod error;
 pub mod fakecheck;
 pub mod fakedrive;
+pub mod fat32;
 pub mod format;
 pub mod image;
 pub mod iso;
