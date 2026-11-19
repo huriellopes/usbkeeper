@@ -12,6 +12,7 @@ export const GUIDE = {
   speed: "velocidade",
   remove: "remover",
   repair: "reparar",
+  wipe: "apagar",
   protections: "protecoes",
   glossary: "glossario",
 } as const;
