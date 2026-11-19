@@ -3,8 +3,8 @@
 use usbkeeper_core::{BlockDevice, CoreError, Ejector, Enumerator, Formatter, Mounts, Repairer};
 
 /// Resposta no Windows às operações que chegam na M4b.
-pub const WINDOWS_NEXT: &str = "no Windows esta operação chega na próxima etapa (M4b); \
-     por enquanto funcionam list, info, health, bench (leitura), history, report, recomendar e guia";
+pub const WINDOWS_NEXT: &str = "no Windows esta operação chega na próxima etapa (M4b2); \
+     por enquanto formatar, reparar, montar e remover ainda não estão disponíveis";
 
 pub type OpenRaw = fn(&str, bool) -> Result<Box<dyn BlockDevice>, CoreError>;
 
@@ -38,20 +38,17 @@ pub fn backend(include_virtual: bool) -> Backend {
 
 #[cfg(windows)]
 pub fn backend(include_virtual: bool) -> Backend {
-    use usbkeeper_windows::{RawDevice, WindowsEnumerator};
+    use usbkeeper_windows::{RawDevice, WindowsEnumerator, WindowsMounts};
     let next = || Box::new(unsupported::Unsupported(WINDOWS_NEXT));
     Backend {
         enumerator: Box::new(WindowsEnumerator { include_virtual }),
         formatter: next(),
-        mounts: next(),
+        mounts: Box::new(WindowsMounts {
+            mount_unsupported: WINDOWS_NEXT,
+        }),
         ejector: next(),
         repairer: next(),
-        open_raw: |path, write| {
-            if write {
-                return Err(CoreError::Backend(WINDOWS_NEXT.into()));
-            }
-            Ok(Box::new(RawDevice::open(path, false)?))
-        },
+        open_raw: |path, write| Ok(Box::new(RawDevice::open(path, write)?)),
     }
 }
 

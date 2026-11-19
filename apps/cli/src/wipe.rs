@@ -29,6 +29,10 @@ controlador. Para garantia total, use criptografia desde o início (veja: usbkee
 pub fn wipe(b: &Backend, a: WipeArgs) -> Result<()> {
     let device = b.enumerator.get(&a.device)?;
     precheck(&device, &a.guard)?;
+    if a.discard && !cfg!(target_os = "linux") {
+        // Antes de pedir a série.
+        discard_device(&device.path)?;
+    }
     eprintln!(
         "APAGAR TUDO em {}  {} ({}). Isto é irreversível.",
         device.path,
@@ -151,5 +155,7 @@ fn discard_device(path: &str) -> Result<()> {
 
 #[cfg(not(target_os = "linux"))]
 fn discard_device(_path: &str) -> Result<()> {
-    bail!("descarte ainda não suportado nesta plataforma")
+    bail!(
+        "descarte (TRIM) ainda não suportado nesta plataforma; apague com zeros ou dados aleatórios"
+    )
 }

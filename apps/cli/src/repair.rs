@@ -10,6 +10,9 @@ use crate::destructive::{Guard, confirm_and_take, precheck, take};
 use crate::store;
 
 pub fn repair(b: &Backend, device: &str, check: bool, guard: Guard, json: bool) -> Result<()> {
+    if cfg!(windows) {
+        anyhow::bail!(crate::backend::WINDOWS_NEXT);
+    }
     let dev = b.enumerator.get(device)?;
     precheck(&dev, &guard)?;
     if dev.partitions.is_empty() {

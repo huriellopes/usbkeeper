@@ -45,11 +45,6 @@ pub struct FormatArgs {
 /// Recusa cedo (antes de mostrar plano ou pedir confirmação). Disco montado
 /// só passa se `--unmount` foi pedido.
 pub fn precheck(device: &Device, guard: &Guard) -> Result<()> {
-    // Antes de pedir a série: no Windows as operações que gravam vêm na M4b.
-    // `cfg!` (e não `#[cfg]`) para o resto compilar igual em todo sistema.
-    if cfg!(windows) {
-        bail!(crate::backend::WINDOWS_NEXT);
-    }
     let refusals: Vec<Refusal> = safety::check_target(device, guard.policy())
         .into_iter()
         .filter(|r| !(guard.unmount && matches!(r, Refusal::Mounted { .. })))
@@ -106,7 +101,13 @@ pub fn take(b: &Backend, device: &Device, guard: &Guard) -> Result<Device> {
             m.found.size_bytes
         );
     }
-    let refusals = safety::check_target(&current, guard.policy());
+    // No Windows o volume desmontado continua com a letra: quem protege é a
+    // trava tomada ao abrir o disco (falha se algo estiver em uso). No Linux a
+    // releitura continua pegando uma remontagem automática de última hora.
+    let refusals: Vec<Refusal> = safety::check_target(&current, guard.policy())
+        .into_iter()
+        .filter(|r| !(cfg!(windows) && guard.unmount && matches!(r, Refusal::Mounted { .. })))
+        .collect();
     if !refusals.is_empty() {
         return Err(refuse(&current, &refusals));
     }
@@ -209,6 +210,9 @@ fn print_plan(device: &Device, request: &FormatRequest) {
 }
 
 pub fn format(b: &Backend, args: FormatArgs) -> Result<()> {
+    if cfg!(windows) {
+        bail!(crate::backend::WINDOWS_NEXT);
+    }
     let device = b.enumerator.get(&args.device)?;
     let label = normalize_label(args.filesystem, args.label.as_deref().unwrap_or(""))
         .map_err(|e| anyhow::anyhow!("{e} (veja: usbkeeper guia sistemas-de-arquivos)"))?;
@@ -325,6 +329,10 @@ pub fn eject(
     power_off: bool,
     json: bool,
 ) -> Result<()> {
+    // Só desmontar no Windows não é remoção segura (ele remonta no próximo acesso).
+    if cfg!(windows) {
+        bail!(crate::backend::WINDOWS_NEXT);
+    }
     let device = b.enumerator.get(device)?;
     let refusals = safety::check_target(&device, Policy { allow_non_usb });
     if let Some(r) = refusals
