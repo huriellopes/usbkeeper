@@ -346,6 +346,12 @@ pub fn print_json<T: serde::Serialize>(value: &T) -> Result<()> {
 }
 
 fn main() {
+    // `usbkeeper guia | head`: sair em silêncio quando o pipe fecha, como
+    // os comandos de Unix, em vez de entrar em pânico no println!.
+    #[cfg(unix)]
+    unsafe {
+        libc::signal(libc::SIGPIPE, libc::SIG_DFL);
+    }
     let cli = Cli::parse();
     machine::set(machine::Mode {
         progress_json: cli.progress_json,
