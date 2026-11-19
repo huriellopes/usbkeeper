@@ -20,6 +20,12 @@ jobs:
       # A interface (usbkeeper-gui) precisa de WebKit e do frontend compilado: job "gui".
       - run: cargo clippy --workspace --exclude usbkeeper-gui --all-targets -- -D warnings
       - run: cargo test --workspace --exclude usbkeeper-gui
+      - name: e2e Windows (VHD)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          cargo build -p usbkeeper
+          ./scripts/e2e-windows.ps1 -Bin target/debug/usbkeeper.exe
 
   gui:
     runs-on: ubuntu-latest
