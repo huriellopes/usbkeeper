@@ -355,3 +355,49 @@ pub fn eject(
     }
     Ok(())
 }
+
+/// `mount`/`montar`: monta as partições para aparecerem no gerenciador de
+/// arquivos (via udisks, sem senha).
+pub fn mount(b: &Backend, device: &str, allow_non_usb: bool, json: bool) -> Result<()> {
+    let device = b.enumerator.get(device)?;
+    let refusals = safety::check_target(&device, Policy { allow_non_usb });
+    if let Some(r) = refusals
+        .iter()
+        .find(|r| r.is_absolute() || matches!(r, Refusal::NotUsb { .. }))
+    {
+        bail!("não vou montar {}: {}", device.path, r.message());
+    }
+    #[cfg(target_os = "linux")]
+    if usbkeeper_linux::is_root() && !json {
+        eprintln!(
+            "aviso: rodando como root, a montagem vai para /media/root e o seu gerenciador de arquivos não a mostra; rode sem sudo"
+        );
+    }
+    let mounted = b.mounts.mount_all(&device)?;
+    let all: Vec<String> = device
+        .all_mountpoints()
+        .map(String::from)
+        .chain(mounted.iter().cloned())
+        .collect();
+    if json {
+        return crate::print_json(&serde_json::json!({
+            "device": device.path,
+            "mounted": mounted,
+            "mountpoints": all,
+        }));
+    }
+    if all.is_empty() {
+        println!(
+            "{} não tem partição que dê para montar (sem sistema de arquivos reconhecido ou criptografada).",
+            device.path
+        );
+    } else {
+        for m in &mounted {
+            println!("✔ montado em {m}");
+        }
+        if mounted.is_empty() {
+            println!("Já estava montado em {}", all.join(", "));
+        }
+    }
+    Ok(())
+}

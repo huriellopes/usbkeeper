@@ -84,6 +84,9 @@ pub trait Mounts {
     /// [`CoreError::Busy`] com os processos responsáveis.
     fn unmount_all(&self, device: &Device) -> Result<(), CoreError>;
     fn holders(&self, device: &Device) -> Vec<Holder>;
+    /// Monta as partições montáveis ainda não montadas (para aparecerem no
+    /// gerenciador de arquivos). Devolve os pontos de montagem criados.
+    fn mount_all(&self, device: &Device) -> Result<Vec<String>, CoreError>;
 }
 
 pub trait Ejector {

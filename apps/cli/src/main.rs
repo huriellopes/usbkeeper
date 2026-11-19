@@ -174,6 +174,16 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
+    /// Monta as partições para aparecerem no gerenciador de arquivos (apelido: montar)
+    #[command(alias = "montar")]
+    Mount {
+        device: String,
+        #[arg(long)]
+        allow_non_usb: bool,
+        /// Saída em JSON
+        #[arg(long)]
+        json: bool,
+    },
     /// Guia: pendrive, HD externo, MBR × GPT, sistemas de arquivos, falsificados… (ex.: usbkeeper guia mbr)
     Guia {
         /// Tópico (id ou apelido). Sem tópico, lista todos.
@@ -359,6 +369,11 @@ fn run(cli: Cli) -> Result<()> {
             guard,
             json,
         } => repair::repair(&backend(true), &device, check, guard.into(), json)?,
+        Command::Mount {
+            device,
+            allow_non_usb,
+            json,
+        } => destructive::mount(&backend(true), &device, allow_non_usb, json)?,
         Command::Guia { topic, html } => match topic {
             None => {
                 println!("Tópicos do guia (usbkeeper guia <tópico>):\n");
@@ -445,6 +460,12 @@ mod tests {
         ));
         let cli = Cli::try_parse_from(["usbkeeper", "reparar", "sdb", "--check"]).unwrap();
         assert!(matches!(cli.command, Command::Repair { check: true, .. }));
+    }
+
+    #[test]
+    fn montar_parses() {
+        let cli = Cli::try_parse_from(["usbkeeper", "montar", "sdb"]).unwrap();
+        assert!(matches!(cli.command, Command::Mount { device, .. } if device == "sdb"));
     }
 
     #[test]

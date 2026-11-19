@@ -62,6 +62,9 @@ pub fn backend(_include_virtual: bool) -> Backend {
         fn holders(&self, _: &Device) -> Vec<Holder> {
             Vec::new()
         }
+        fn mount_all(&self, _: &Device) -> Result<Vec<String>, CoreError> {
+            Err(err())
+        }
     }
     impl Repairer for Unsupported {
         fn repair(
