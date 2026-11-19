@@ -4,6 +4,7 @@
 //! qualquer sistema (testada no CI Linux também); o que executa coisas é
 //! exclusivo do Windows.
 
+pub mod format;
 pub mod paths;
 pub mod repair;
 pub mod storage;
@@ -21,6 +22,8 @@ mod rawdev;
 pub use admin::is_elevated;
 #[cfg(windows)]
 pub use enumerate::WindowsEnumerator;
+#[cfg(windows)]
+pub use format::{WindowsFormatter, data_partition};
 #[cfg(windows)]
 pub use mounts::WindowsMounts;
 #[cfg(windows)]

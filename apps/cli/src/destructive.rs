@@ -210,9 +210,6 @@ fn print_plan(device: &Device, request: &FormatRequest) {
 }
 
 pub fn format(b: &Backend, args: FormatArgs) -> Result<()> {
-    if cfg!(windows) {
-        bail!(crate::backend::WINDOWS_NEXT);
-    }
     let device = b.enumerator.get(&args.device)?;
     let label = normalize_label(args.filesystem, args.label.as_deref().unwrap_or(""))
         .map_err(|e| anyhow::anyhow!("{e} (veja: usbkeeper guia sistemas-de-arquivos)"))?;
@@ -419,4 +416,41 @@ pub fn mount(b: &Backend, device: &str, allow_non_usb: bool, json: bool) -> Resu
         }
     }
     Ok(())
+}
+
+/// Subcomando oculto (Windows): grava o FAT32 próprio na partição de dados,
+/// com os volumes do disco travados. Chamado pelo plano do `format` quando a
+/// partição passa de 32 GiB (o Windows recusa).
+#[cfg(windows)]
+pub fn fat32_internal(device: &str, label: Option<&str>) -> Result<()> {
+    use usbkeeper_core::BlockDevice;
+    let n = usbkeeper_windows::paths::disk_number(device)
+        .with_context(|| format!("caminho inesperado: {device}"))?;
+    let (offset, size) = usbkeeper_windows::data_partition(n)?;
+    let mut dev = usbkeeper_windows::RawDevice::open(device, true)?;
+    if offset + size > dev.size() {
+        bail!("a partição de dados passa do fim do disco");
+    }
+    let seed = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos() as u32)
+        .unwrap_or(0);
+    let cancel = crate::checks::cancel_flag();
+    let mut reporter = crate::machine::Reporter::new(true);
+    usbkeeper_core::fat32::format(
+        &mut dev,
+        offset,
+        size,
+        label,
+        seed ^ (offset as u32),
+        &mut reporter,
+        &cancel,
+    )?;
+    reporter.finish();
+    Ok(())
+}
+
+#[cfg(not(windows))]
+pub fn fat32_internal(_device: &str, _label: Option<&str>) -> Result<()> {
+    bail!("subcomando interno do Windows")
 }

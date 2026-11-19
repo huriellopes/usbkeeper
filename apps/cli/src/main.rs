@@ -225,6 +225,13 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
+    /// (interno, Windows) grava o FAT32 próprio na partição de dados do disco
+    #[command(name = "__fat32", hide = true)]
+    Fat32Internal {
+        device: String,
+        #[arg(long)]
+        label: Option<String>,
+    },
     /// Imagem do disco inteiro: criar (backup), verificar e restaurar (apelido: imagem)
     #[command(name = "image", alias = "imagem")]
     Image {
@@ -521,6 +528,9 @@ fn run(cli: Cli) -> Result<()> {
                 json,
             },
         )?,
+        Command::Fat32Internal { device, label } => {
+            destructive::fat32_internal(&device, label.as_deref())?
+        }
         Command::Image { action } => match action {
             ImageAction::Create {
                 device,
