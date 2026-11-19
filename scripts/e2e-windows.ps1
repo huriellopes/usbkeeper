@@ -1,4 +1,4 @@
-# e2e do usbkeeper no Windows (M4a leitura + M4b1 gravação). Roda como administrador
+# e2e do usbkeeper no Windows (M4a leitura, M4b1 gravação, M4b2 formatar/reparar/montar/remover). Roda como administrador
 # (o runner do GitHub já é): cria e anexa um VHD de 256 MB, formata com as
 # ferramentas do próprio Windows e confere o que o usbkeeper enxerga.
 #   pwsh scripts/e2e-windows.ps1 -Bin target\debug\usbkeeper.exe
@@ -133,11 +133,73 @@ try {
   $out = Usbk gravar-iso $win "PhysicalDrive$n" @Guard
   Check ($LASTEXITCODE -ne 0 -and ($out -join ' ') -match 'Windows') "ISO do Windows recusada"
 
-  # ainda na M4b2
-  $out = Usbk format "PhysicalDrive$n" --fs exfat @Guard
-  Check ($LASTEXITCODE -ne 0 -and ($out -join ' ') -match 'M4b2') "format responde que chega na M4b2"
-  $out = Usbk eject "PhysicalDrive$n" --allow-non-usb
-  Check ($LASTEXITCODE -ne 0 -and ($out -join ' ') -match 'M4b2') "remover responde que chega na M4b2"
+  # ---------------------------------------------------------------- M4b2: formatar
+  foreach ($c in @(@('exfat', 'EXFAT E2E', 'exFAT'), @('ntfs', 'NTFS E2E', 'NTFS'), @('fat32', 'FAT E2E', 'FAT32'))) {
+    $fs, $lb, $winfs = $c
+    $f = UsbkJson format "PhysicalDrive$n" --fs $fs --label $lb @Guard --json
+    Update-Disk -Number $n
+    $vol = Get-Partition -DiskNumber $n | Get-Volume -ErrorAction SilentlyContinue | Where-Object FileSystemLabel -eq $lb
+    Check ($f -and $vol -and $vol.FileSystem -eq $winfs -and $vol.DriveLetter) "format $fs: Windows vê $winfs, rótulo e letra"
+  }
+  $f = UsbkJson format "PhysicalDrive$n" --fs exfat --max-size 128MiB @Guard --json
+  Update-Disk -Number $n
+  $dp1 = Get-Partition -DiskNumber $n | Sort-Object Offset | Select-Object -Last 1
+  Check ($f -and $f.table -eq 'mbr' -and ($dp1.Offset + $dp1.Size) -le 128MB) "format --max-size: MBR terminando em até 128 MiB"
+  $out = Usbk format "PhysicalDrive$n" --fs ext4 @Guard
+  Check ($LASTEXITCODE -ne 0 -and ($out -join ' ') -match 'exFAT') "ext4 recusado no Windows, sugerindo exFAT"
+  $out = Usbk format "PhysicalDrive$n" --fs fat32 --dry-run @Guard
+  Check ($LASTEXITCODE -eq 0 -and ($out -join ' ') -match 'Format-Volume -FileSystem FAT32') "--dry-run mostra os comandos"
+
+  # ---------------------------------------------------------------- reparar (chkdsk)
+  UsbkJson format "PhysicalDrive$n" --fs fat32 --label 'REPARO' @Guard --json | Out-Null
+  $r = UsbkJson reparar "PhysicalDrive$n" --check @Guard --json
+  Check ($r -and $r.report.partitions[0].status -eq 'clean') "reparar --check (chkdsk): limpo"
+  $r = UsbkJson reparar "PhysicalDrive$n" @Guard --json
+  Check ($r -and $r.report.partitions[0].status -in 'clean', 'fixed') "reparar (chkdsk /f /x) e nova verificação"
+
+  # ---------------------------------------------------------------- montar
+  $pl = Get-Partition -DiskNumber $n | Where-Object { $_.DriveLetter -and [int][char]$_.DriveLetter -ne 0 } | Select-Object -First 1
+  $pl | Remove-PartitionAccessPath -AccessPath "$($pl.DriveLetter):\"
+  $mt = UsbkJson montar "PhysicalDrive$n" --allow-non-usb --json
+  $back = Get-Partition -DiskNumber $n -PartitionNumber $pl.PartitionNumber
+  Check ($mt -and @($mt.mounted).Count -eq 1 -and $back.DriveLetter) "montar devolve uma letra à partição"
+  $mt = UsbkJson montar "PhysicalDrive$n" --allow-non-usb --json
+  Check ($mt -and @($mt.mounted).Count -eq 0 -and @($mt.mountpoints).Count -ge 1) "montar de novo não duplica"
+
+  # ---------------------------------------------------------------- remover
+  $out = Usbk remover "PhysicalDrive$n"
+  Check ($LASTEXITCODE -ne 0 -and ($out -join ' ') -match 'não é USB') "remover recusa disco que não é USB"
+  $out = Usbk remover "PhysicalDrive$n" --allow-non-usb --no-power-off
+  Check ($LASTEXITCODE -ne 0 -and ($out -join ' ') -match 'só desmontar') "--no-power-off não se aplica no Windows"
+
+  # ---------------------------------------------------------------- FAT32 de 40 GB (o Windows recusaria)
+  $big = Join-Path $work 'grande.vhdx'
+  Remove-Item $big -ErrorAction SilentlyContinue
+  "create vdisk file=`"$big`" maximum=40960 type=expandable`nselect vdisk file=`"$big`"`nattach vdisk" |
+    Set-Content (Join-Path $work 'big.txt') -Encoding ascii
+  diskpart /s (Join-Path $work 'big.txt') | Out-Null
+  $bd = Get-Disk | Where-Object { $_.Location -eq $big } | Select-Object -First 1
+  $m = $bd.Number
+  $out = Usbk format "PhysicalDrive$m" --fs fat32 --dry-run --allow-non-usb
+  Check (($out -join ' ') -match '__fat32') "FAT32 > 32 GB usa o formatador do usbkeeper"
+  $f = UsbkJson format "PhysicalDrive$m" --fs fat32 --label 'GRANDE40' --allow-non-usb --yes-i-know "\\.\PhysicalDrive$m" --json
+  Update-Disk -Number $m
+  $bv = Get-Partition -DiskNumber $m | Get-Volume -ErrorAction SilentlyContinue | Where-Object FileSystemLabel -eq 'GRANDE40'
+  Check ($f -and $bv -and $bv.FileSystem -eq 'FAT32' -and $bv.Size -gt 39GB) "Windows reconhece FAT32 de ~40 GB"
+  if ($bv -and $bv.DriveLetter) {
+    $bl = $bv.DriveLetter
+    $payload = [byte[]]::new(8MB); (New-Object Random 42).NextBytes($payload)
+    [IO.File]::WriteAllBytes("${bl}:\dados.bin", $payload)
+    New-Item -ItemType Directory "${bl}:\pasta\sub" | Out-Null
+    Set-Content "${bl}:\pasta\sub\leia.txt" 'FAT32 do usbkeeper' -NoNewline
+    Write-VolumeCache -DriveLetter $bl
+    $same = [Linq.Enumerable]::SequenceEqual([byte[]][IO.File]::ReadAllBytes("${bl}:\dados.bin"), $payload)
+    Check ($same -and (Get-Content "${bl}:\pasta\sub\leia.txt" -Raw) -eq 'FAT32 do usbkeeper') "grava e lê arquivos e pastas no FAT32 de 40 GB"
+    chkdsk "${bl}:" | Out-Null
+    Check ($LASTEXITCODE -eq 0) "chkdsk do Windows: FAT32 de 40 GB sem erros"
+  } else { Bad "FAT32 de 40 GB sem letra" }
+  "select vdisk file=`"$big`"`ndetach vdisk" | Set-Content (Join-Path $work 'bigdet.txt') -Encoding ascii
+  diskpart /s (Join-Path $work 'bigdet.txt') | Out-Null
 
   $hist = UsbkJson history --json
   Check ($null -ne $hist) "histórico em %LOCALAPPDATA%"

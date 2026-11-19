@@ -29,8 +29,8 @@ impl Mounts for WindowsMounts {
         Vec::new()
     }
 
-    /// Atribui uma letra às partições com sistema de arquivos e sem letra;
-    /// devolve as letras de todas (para aparecerem no Explorer).
+    /// Atribui uma letra às partições com sistema de arquivos e sem letra
+    /// (para aparecerem no Explorer); devolve só as letras atribuídas agora.
     fn mount_all(&self, device: &Device) -> Result<Vec<String>, CoreError> {
         let n = disk_number(&device.path)
             .ok_or_else(|| CoreError::Backend(format!("caminho inesperado: {}", device.path)))?;
@@ -41,8 +41,8 @@ impl Mounts for WindowsMounts {
                if (-not $v -or -not $v.FileSystem) {{ continue }}; \
                if (-not $p.DriveLetter -or [int][char]$p.DriveLetter -eq 0) {{ \
                  $p | Add-PartitionAccessPath -AssignDriveLetter; \
-                 $p = Get-Partition -DiskNumber {n} -PartitionNumber $p.PartitionNumber }}; \
-               $out += ([string]$p.DriveLetter + ':\\') }}; \
+                 $p = Get-Partition -DiskNumber {n} -PartitionNumber $p.PartitionNumber; \
+                 $out += ([string]$p.DriveLetter + ':\\') }} }}; \
              $out -join [Environment]::NewLine"
         );
         let out = Command::new("powershell.exe")
@@ -66,11 +66,7 @@ impl Mounts for WindowsMounts {
             .filter(|l| l.len() >= 2)
             .map(String::from)
             .collect();
-        if letters.is_empty() {
-            return Err(CoreError::Backend(
-                "nenhuma partição com sistema de arquivos reconhecido para montar".into(),
-            ));
-        }
+        // Só as letras novas (como no Linux); a CLI soma às que já existiam.
         Ok(letters)
     }
 }
