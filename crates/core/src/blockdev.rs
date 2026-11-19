@@ -84,6 +84,7 @@ pub enum Phase {
     Scan,
     Wipe,
     SelfTest,
+    Image,
 }
 
 impl Phase {
@@ -103,6 +104,7 @@ impl Phase {
             Phase::Scan => "scan",
             Phase::Wipe => "wipe",
             Phase::SelfTest => "selftest",
+            Phase::Image => "image",
         }
     }
 
@@ -121,6 +123,7 @@ impl Phase {
             Phase::Scan => "lendo a superfície",
             Phase::Wipe => "apagando",
             Phase::SelfTest => "autoteste do disco",
+            Phase::Image => "copiando",
         }
     }
 }

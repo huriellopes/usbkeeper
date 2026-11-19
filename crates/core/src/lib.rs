@@ -8,6 +8,8 @@ pub mod error;
 pub mod fakecheck;
 pub mod fakedrive;
 pub mod format;
+pub mod image;
+pub mod iso;
 pub mod model;
 pub mod pattern;
 pub mod platform;
