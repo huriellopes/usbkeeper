@@ -32,6 +32,7 @@ pub struct Policy {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Refusal {
     SystemDisk { mountpoint: String },

@@ -1,8 +1,20 @@
-use anyhow::Result;
+mod backend;
+mod checks;
+mod destructive;
+mod health;
+mod machine;
+mod report;
+mod store;
+mod view;
+
+use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
+use usbkeeper_core::format::{Filesystem, PartitionTable};
 use usbkeeper_core::safety::{self, Policy};
-use usbkeeper_core::units::human_bytes;
-use usbkeeper_core::{Device, Enumerator, Transport};
+
+use crate::backend::backend;
+use crate::checks::{BenchArgs, FakeCheckArgs};
+use crate::destructive::{FormatArgs, Guard};
 
 #[derive(Parser)]
 #[command(
@@ -11,6 +23,15 @@ use usbkeeper_core::{Device, Enumerator, Transport};
     about = "Gerencia pendrives e HDs externos"
 )]
 struct Cli {
+    /// Não grava este comando no histórico
+    #[arg(long, global = true)]
+    no_history: bool,
+    /// Progresso como linhas JSON no stderr (interface gráfica)
+    #[arg(long, global = true, hide = true)]
+    progress_json: bool,
+    /// Cancela ao ler a linha "cancel" no stdin (interface gráfica)
+    #[arg(long, global = true, hide = true)]
+    cancel_stdin: bool,
     #[command(subcommand)]
     command: Command,
 }
@@ -35,46 +56,179 @@ enum Command {
         #[arg(long)]
         allow_non_usb: bool,
     },
+    /// Apaga o disco e cria uma partição única formatada
+    Format {
+        device: String,
+        /// fat32 | exfat | ntfs | ext4
+        #[arg(long = "fs", short = 'f')]
+        filesystem: Filesystem,
+        /// gpt | mbr (padrão: mbr até 2 TiB, gpt acima)
+        #[arg(long)]
+        table: Option<PartitionTable>,
+        /// Rótulo do volume
+        #[arg(long, short = 'l')]
+        label: Option<String>,
+        /// Usa só o início do disco (ex.: 7800MiB): para pendrive falsificado,
+        /// com o valor sugerido pelo fake-check. Força tabela MBR.
+        #[arg(long, value_name = "TAMANHO", value_parser = usbkeeper_core::units::parse_size)]
+        max_size: Option<u64>,
+        /// Desmonta as partições antes, se estiverem montadas
+        #[arg(long)]
+        unmount: bool,
+        /// Permite alvo que não seja USB (o disco do sistema continua proibido)
+        #[arg(long)]
+        allow_non_usb: bool,
+        /// Confirma sem perguntar; precisa ser o número de série (ou o caminho)
+        #[arg(long, value_name = "SERIE")]
+        yes_i_know: Option<String>,
+        /// Mostra o que seria feito, sem alterar nada
+        #[arg(long)]
+        dry_run: bool,
+        /// Resultado em JSON
+        #[arg(long)]
+        json: bool,
+    },
+    /// Verifica se o pendrive/cartão é falsificado (capacidade adulterada)
+    #[command(name = "fake-check")]
+    FakeCheck {
+        device: String,
+        /// Grava e lê o disco inteiro (definitivo, APAGA TUDO, demorado)
+        #[arg(long)]
+        full: bool,
+        /// Teste rápido sem salvar/restaurar os blocos originais
+        #[arg(long, conflicts_with = "full")]
+        no_backup: bool,
+        #[command(flatten)]
+        guard: GuardArgs,
+        /// Saída em JSON (sem barra de progresso)
+        #[arg(long)]
+        json: bool,
+    },
+    /// Mede velocidade: leitura sequencial e 4K (e escrita, com --write)
+    Bench {
+        device: String,
+        /// Também mede escrita (destrutivo: sobrescreve parte do disco)
+        #[arg(long)]
+        write: bool,
+        /// MB lidos/gravados no teste sequencial
+        #[arg(long, default_value_t = 256)]
+        sample_mb: u64,
+        #[command(flatten)]
+        guard: GuardArgs,
+        /// Saída em JSON (sem barra de progresso)
+        #[arg(long)]
+        json: bool,
+    },
+    /// Saúde: SMART (HD/SSD) e, com --scan, leitura de toda a superfície
+    Health {
+        device: String,
+        /// Lê o disco inteiro procurando blocos ilegíveis (não grava nada)
+        #[arg(long)]
+        scan: bool,
+        /// Saída em JSON (sem barra de progresso)
+        #[arg(long)]
+        json: bool,
+    },
+    /// Histórico de testes: todos os dispositivos, ou um (nome, chave ou série)
+    History {
+        #[arg(allow_hyphen_values = true)]
+        device: Option<String>,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Gera laudo HTML do dispositivo a partir do histórico
+    Report {
+        #[arg(allow_hyphen_values = true)]
+        device: String,
+        /// Arquivo de saída (padrão: usbkeeper-<chave>.html)
+        #[arg(long, short = 'o')]
+        output: Option<std::path::PathBuf>,
+    },
+    /// Guia: pendrive, HD externo, MBR × GPT, sistemas de arquivos, falsificados… (ex.: usbkeeper guia mbr)
+    Guia {
+        /// Tópico (id ou apelido). Sem tópico, lista todos.
+        topic: Option<String>,
+        /// Imprime o HTML do tópico
+        #[arg(long)]
+        html: bool,
+    },
+    /// Remove com segurança: desmonta e desliga (apelido: remover)
+    #[command(alias = "remover")]
+    Eject {
+        device: String,
+        /// Só desmonta, sem desligar
+        #[arg(long)]
+        no_power_off: bool,
+        #[arg(long)]
+        allow_non_usb: bool,
+        /// Resultado em JSON
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[derive(clap::Args)]
+struct GuardArgs {
+    /// Desmonta as partições antes, se estiverem montadas
+    #[arg(long)]
+    unmount: bool,
+    /// Permite alvo que não seja USB (o disco do sistema continua proibido)
+    #[arg(long)]
+    allow_non_usb: bool,
+    /// Confirma sem perguntar; precisa ser o número de série (ou o caminho)
+    #[arg(long, value_name = "SERIE")]
+    yes_i_know: Option<String>,
+}
+
+impl From<GuardArgs> for Guard {
+    fn from(g: GuardArgs) -> Self {
+        Guard {
+            unmount: g.unmount,
+            allow_non_usb: g.allow_non_usb,
+            yes_i_know: g.yes_i_know,
+        }
+    }
+}
+
+/// Escreve JSON no stdout; se o leitor fechar o pipe (ex.: `| head`), sai
+/// em silêncio em vez de entrar em pânico.
+pub fn print_json<T: serde::Serialize>(value: &T) -> Result<()> {
+    use std::io::Write;
+    let text = serde_json::to_string_pretty(value)?;
+    match writeln!(std::io::stdout().lock(), "{text}") {
+        Err(e) if e.kind() == std::io::ErrorKind::BrokenPipe => Ok(()),
+        other => Ok(other?),
+    }
 }
 
 fn main() {
-    if let Err(e) = run(Cli::parse()) {
-        eprintln!("erro: {e:#}");
+    let cli = Cli::parse();
+    machine::set(machine::Mode {
+        progress_json: cli.progress_json,
+        cancel_stdin: cli.cancel_stdin,
+    });
+    if let Err(e) = run(cli) {
+        if machine::get().progress_json {
+            eprintln!("{}", machine::error_value(&e));
+        } else {
+            eprintln!("erro: {e:#}");
+        }
         std::process::exit(1);
     }
 }
 
-#[cfg(target_os = "linux")]
-fn enumerator(include_virtual: bool) -> impl Enumerator {
-    usbkeeper_linux::LinuxEnumerator {
-        include_virtual,
-        ..Default::default()
-    }
-}
-
-#[cfg(not(target_os = "linux"))]
-fn enumerator(_include_virtual: bool) -> impl Enumerator {
-    struct Unsupported;
-    impl Enumerator for Unsupported {
-        fn list(&self) -> Result<Vec<Device>, usbkeeper_core::CoreError> {
-            Err(usbkeeper_core::CoreError::Backend(
-                "plataforma ainda não suportada (Windows e macOS chegam nas próximas etapas)"
-                    .into(),
-            ))
-        }
-    }
-    Unsupported
-}
-
 fn run(cli: Cli) -> Result<()> {
+    if cli.no_history {
+        store::disable();
+    }
     match cli.command {
         Command::List { all, json } => {
-            let devices = enumerator(all).list()?;
+            let devices = backend(all).enumerator.list()?;
             if json {
-                println!("{}", serde_json::to_string_pretty(&devices)?);
+                print_json(&devices)?;
             } else {
-                print_table(&devices);
-                wsl_hint(&devices);
+                view::print_table(&devices);
+                view::wsl_hint(&devices);
             }
         }
         Command::Info {
@@ -82,180 +236,153 @@ fn run(cli: Cli) -> Result<()> {
             json,
             allow_non_usb,
         } => {
-            let dev = enumerator(true).get(&device)?;
+            let b = backend(true);
+            let dev = b.enumerator.get(&device)?;
             let policy = Policy { allow_non_usb };
+            let holders = b.mounts.holders(&dev);
             if json {
                 let refusals = safety::check_target(&dev, policy);
-                let out = serde_json::json!({ "device": dev, "refusals": refusals });
-                println!("{}", serde_json::to_string_pretty(&out)?);
+                let out = serde_json::json!({
+                    "device": dev,
+                    "refusals": refusals,
+                    "holders": holders,
+                });
+                print_json(&out)?;
             } else {
-                print_info(&dev, policy);
+                view::print_info(&dev, policy, &holders);
             }
         }
+        Command::Format {
+            device,
+            filesystem,
+            table,
+            label,
+            max_size,
+            unmount,
+            allow_non_usb,
+            yes_i_know,
+            dry_run,
+            json,
+        } => destructive::format(
+            &backend(true),
+            FormatArgs {
+                device,
+                filesystem,
+                table,
+                label,
+                max_bytes: max_size,
+                guard: Guard {
+                    unmount,
+                    allow_non_usb,
+                    yes_i_know,
+                },
+                dry_run,
+                json,
+            },
+        )?,
+        Command::FakeCheck {
+            device,
+            full,
+            no_backup,
+            guard,
+            json,
+        } => checks::fake_check(
+            &backend(true),
+            FakeCheckArgs {
+                device,
+                full,
+                no_backup,
+                guard: guard.into(),
+                json,
+            },
+        )?,
+        Command::Bench {
+            device,
+            write,
+            sample_mb,
+            guard,
+            json,
+        } => checks::bench(
+            &backend(true),
+            BenchArgs {
+                device,
+                write,
+                sample_mb,
+                guard: guard.into(),
+                json,
+            },
+        )?,
+        Command::Health { device, scan, json } => {
+            health::health(&backend(true), health::HealthArgs { device, scan, json })?
+        }
+        Command::History { device, json } => report::history(&backend(true), device, json)?,
+        Command::Report { device, output } => report::report(&backend(true), device, output)?,
+        Command::Guia { topic, html } => match topic {
+            None => {
+                println!("Tópicos do guia (usbkeeper guia <tópico>):\n");
+                for t in usbkeeper_guide::topics() {
+                    println!("  {:<22} {}\n  {:<22} {}\n", t.id, t.title, "", t.summary);
+                }
+            }
+            Some(q) => {
+                let t = usbkeeper_guide::find(&q).with_context(|| {
+                    format!("tópico desconhecido: {q:?}; rode `usbkeeper guia` para ver a lista")
+                })?;
+                if html {
+                    println!("{}", usbkeeper_guide::to_html(t.markdown));
+                } else {
+                    print!("{}", usbkeeper_guide::to_terminal(t.markdown));
+                }
+            }
+        },
+        Command::Eject {
+            device,
+            no_power_off,
+            allow_non_usb,
+            json,
+        } => destructive::eject(&backend(true), &device, allow_non_usb, !no_power_off, json)?,
     }
     Ok(())
 }
 
-fn status(dev: &Device) -> &'static str {
-    let refusals = safety::check_target(dev, Policy::default());
-    match refusals.first() {
-        None => "pode ser alvo",
-        Some(r) if r.is_absolute() => "SISTEMA",
-        Some(safety::Refusal::NotUsb { .. }) => "não-USB",
-        Some(safety::Refusal::Mounted { .. }) => "montado",
-        Some(safety::Refusal::ReadOnly) => "somente leitura",
-        Some(safety::Refusal::Empty) => "sem mídia",
-        Some(_) => "bloqueado",
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn history_and_report_accept_keys_starting_with_hyphen() {
+        // Chaves gravadas antes desta correção começavam com "-:-:".
+        let cli = Cli::try_parse_from(["usbkeeper", "history", "-:-:WD-1"]).unwrap();
+        assert!(matches!(cli.command, Command::History { device: Some(d), .. } if d == "-:-:WD-1"));
+        let cli = Cli::try_parse_from(["usbkeeper", "report", "-:-:x", "-o", "a.html"]).unwrap();
+        assert!(matches!(cli.command, Command::Report { device, .. } if device == "-:-:x"));
+    }
+
+    #[test]
+    fn machine_flags_are_global() {
+        let cli = Cli::try_parse_from([
+            "usbkeeper",
+            "fake-check",
+            "sdb",
+            "--json",
+            "--progress-json",
+            "--cancel-stdin",
+        ])
+        .unwrap();
+        assert!(cli.progress_json && cli.cancel_stdin);
+    }
+
+    #[test]
+    fn guia_and_remover_parse() {
+        let cli = Cli::try_parse_from(["usbkeeper", "guia", "mbr"]).unwrap();
+        assert!(matches!(cli.command, Command::Guia { topic: Some(t), html: false } if t == "mbr"));
+        let cli = Cli::try_parse_from(["usbkeeper", "remover", "sdb"]).unwrap();
+        assert!(matches!(cli.command, Command::Eject { device, .. } if device == "sdb"));
+    }
+
+    #[test]
+    fn cli_definition_is_valid() {
+        use clap::CommandFactory;
+        Cli::command().debug_assert();
     }
 }
-
-fn print_table(devices: &[Device]) {
-    if devices.is_empty() {
-        println!("Nenhum disco encontrado.");
-        return;
-    }
-    let rows: Vec<[String; 6]> = devices
-        .iter()
-        .map(|d| {
-            let usb = d
-                .usb
-                .as_ref()
-                .map(|u| {
-                    let mut s = u.speed.label().to_string();
-                    if u.is_bottlenecked() {
-                        s.push_str(" ⚠");
-                    }
-                    s
-                })
-                .unwrap_or_else(|| "-".into());
-            [
-                d.path.clone(),
-                human_bytes(d.size_bytes),
-                d.transport.label().to_string(),
-                d.display_name(),
-                usb,
-                status(d).to_string(),
-            ]
-        })
-        .collect();
-    let header = [
-        "DISPOSITIVO",
-        "TAMANHO",
-        "BARRAMENTO",
-        "MODELO",
-        "USB",
-        "STATUS",
-    ];
-    let widths: Vec<usize> = (0..header.len())
-        .map(|i| {
-            rows.iter()
-                .map(|r| r[i].chars().count())
-                .chain([header[i].len()])
-                .max()
-                .unwrap_or(0)
-        })
-        .collect();
-    let line = |cells: &[String]| {
-        cells
-            .iter()
-            .zip(&widths)
-            .map(|(c, w)| format!("{c:<w$}"))
-            .collect::<Vec<_>>()
-            .join("  ")
-            .trim_end()
-            .to_string()
-    };
-    println!("{}", line(&header.map(String::from)));
-    for r in &rows {
-        println!("{}", line(r));
-    }
-    if devices
-        .iter()
-        .any(|d| d.usb.as_ref().is_some_and(|u| u.is_bottlenecked()))
-    {
-        println!(
-            "\n⚠ dispositivo USB 3 operando em velocidade USB 2: troque de porta, hub ou cabo."
-        );
-    }
-}
-
-fn print_info(dev: &Device, policy: Policy) {
-    let opt = |v: &Option<String>| v.clone().unwrap_or_else(|| "-".into());
-    println!("{}  ({})", dev.path, dev.display_name());
-    let yes_no = |b: bool| if b { "sim" } else { "não" }.to_string();
-    for (label, value) in [
-        (
-            "Tamanho",
-            format!("{} ({} bytes)", human_bytes(dev.size_bytes), dev.size_bytes),
-        ),
-        ("Barramento", dev.transport.label().to_string()),
-        ("Nº de série", opt(&dev.serial)),
-        ("Removível", yes_no(dev.removable)),
-        ("Somente leitura", yes_no(dev.read_only)),
-        ("Tabela", opt(&dev.partition_table)),
-        (
-            "Setores",
-            format!(
-                "lógico {} B, físico {} B",
-                dev.logical_sector, dev.physical_sector
-            ),
-        ),
-    ] {
-        println!("  {:<17}{value}", format!("{label}:"));
-    }
-
-    if let Some(u) = &dev.usb {
-        println!("  USB:");
-        println!("    ID:           {}:{}", u.vendor_id, u.product_id);
-        println!("    Fabricante:   {}", opt(&u.manufacturer));
-        println!("    Produto:      {}", opt(&u.product));
-        println!("    Declara:      USB {}", opt(&u.usb_version));
-        println!("    Negociado:    {}", u.speed.label());
-        if u.is_bottlenecked() {
-            println!("    ⚠ Dispositivo USB 3 rodando em USB 2: troque de porta, hub ou cabo.");
-        }
-    }
-
-    if !dev.mountpoints.is_empty() {
-        println!("  Montado em:     {}", dev.mountpoints.join(", "));
-    }
-    if !dev.partitions.is_empty() {
-        println!("  Partições:");
-        for p in &dev.partitions {
-            println!(
-                "    {:<16} {:>9}  {:<12} {:<14} {}",
-                p.path,
-                human_bytes(p.size_bytes),
-                opt(&p.fstype),
-                opt(&p.label),
-                p.mountpoints.join(", ")
-            );
-        }
-    }
-
-    let refusals = safety::check_target(dev, policy);
-    if refusals.is_empty() {
-        println!("\n✔ Pode ser alvo de operações destrutivas.");
-        println!(
-            "  Confirmação exigirá digitar: {}",
-            safety::confirmation_token(dev)
-        );
-    } else {
-        println!("\n✘ Não pode ser alvo agora:");
-        for r in &refusals {
-            println!("  - {}", r.message());
-        }
-    }
-}
-
-#[cfg(target_os = "linux")]
-fn wsl_hint(devices: &[Device]) {
-    if usbkeeper_linux::wsl::running_in_wsl()
-        && !devices.iter().any(|d| d.transport == Transport::Usb)
-    {
-        println!("\n{}", usbkeeper_linux::wsl::USBIPD_HINT);
-    }
-}
-
-#[cfg(not(target_os = "linux"))]
-fn wsl_hint(_devices: &[Device]) {}

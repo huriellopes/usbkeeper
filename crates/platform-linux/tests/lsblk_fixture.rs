@@ -1,3 +1,4 @@
+#![cfg(target_os = "linux")]
 //! Integração lsblk → SafetyGuard usando uma saída real anonimizada.
 
 use usbkeeper_core::safety::{Policy, Refusal, check_target};

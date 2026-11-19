@@ -1,0 +1,18 @@
+[package]
+name = "usbkeeper-history"
+description = "Histórico por dispositivo (SQLite): testes, saúde e velocidade ao longo do tempo"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+ts-rs = { workspace = true, optional = true }
+rusqlite.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[features]
+ts = ["dep:ts-rs"]

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=usbkeeper
+GenericName=Gerenciador de pendrives
+Comment=Pendrives e HDs externos: falsificação, saúde, velocidade e formatação
+Exec={{exec}}
+Icon={{icon}}
+Categories=Utility;System;
+Keywords=usb;pendrive;formatar;falsificado;smart;
+Terminal=false

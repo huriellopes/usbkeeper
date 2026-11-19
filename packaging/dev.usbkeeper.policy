@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+  "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<!--
+  A interface gráfica executa a própria CLI (/usr/bin/usbkeeper) via pkexec;
+  todas as travas de segurança ficam na CLI.
+  auth_admin_keep: a senha vale por alguns minutos (testar e depois formatar
+  o mesmo pendrive não pede a senha duas vezes).
+-->
+<policyconfig>
+  <vendor>usbkeeper</vendor>
+  <action id="dev.usbkeeper.cli">
+    <description>Testar, medir e formatar pendrives e HDs externos</description>
+    <message>O usbkeeper precisa de autorização para acessar o disco diretamente</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/usbkeeper</annotate>
+  </action>
+</policyconfig>

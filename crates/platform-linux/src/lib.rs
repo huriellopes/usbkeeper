@@ -1,6 +1,10 @@
+#![cfg(target_os = "linux")]
 //! Backend Linux: `lsblk` para a topologia e sysfs para os dados USB.
 
+pub mod format;
 pub mod lsblk;
+pub mod mounts;
+pub mod rawdev;
 pub mod sysfs;
 pub mod wsl;
 
@@ -8,6 +12,10 @@ use std::path::PathBuf;
 use std::process::Command;
 
 use usbkeeper_core::{CoreError, Device, Enumerator, Transport};
+
+pub use format::LinuxFormatter;
+pub use mounts::{LinuxEjector, LinuxMounts, is_root};
+pub use rawdev::RawDevice;
 
 pub struct LinuxEnumerator {
     pub sys_root: PathBuf,
