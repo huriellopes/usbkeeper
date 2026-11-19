@@ -71,6 +71,7 @@ pub mod unsupported {
         format::FormatRequest,
     };
 
+    #[cfg_attr(not(windows), allow(dead_code))]
     pub const M4B: &str = "no Windows esta operação chega na próxima etapa (M4b); \
          por enquanto funcionam list, info, health, bench (leitura), history, report, recomendar e guia";
     #[cfg_attr(windows, allow(dead_code))]
