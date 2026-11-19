@@ -139,7 +139,7 @@ try {
     $f = UsbkJson format "PhysicalDrive$n" --fs $fs --label $lb @Guard --json
     Update-Disk -Number $n
     $vol = Get-Partition -DiskNumber $n | Get-Volume -ErrorAction SilentlyContinue | Where-Object FileSystemLabel -eq $lb
-    Check ($f -and $vol -and $vol.FileSystem -eq $winfs -and $vol.DriveLetter) "format $fs: Windows vê $winfs, rótulo e letra"
+    Check ($f -and $vol -and $vol.FileSystem -eq $winfs -and $vol.DriveLetter) "format ${fs}: Windows vê $winfs, rótulo e letra"
   }
   $f = UsbkJson format "PhysicalDrive$n" --fs exfat --max-size 128MiB @Guard --json
   Update-Disk -Number $n
