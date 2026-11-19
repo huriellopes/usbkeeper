@@ -1,0 +1,5 @@
+{"system_drive":"C:",
+ "disks":{"Number":0,"FriendlyName":"Samsung SSD 870","Model":null,"Manufacturer":"","SerialNumber":null,"Size":1000204886016,"BusType":11,"PartitionStyle":"MBR","IsReadOnly":false,"IsSystem":false,"IsBoot":false,"IsOffline":false,"LogicalSectorSize":null,"PhysicalSectorSize":null,"Path":null},
+ "partitions":{"DiskNumber":0,"PartitionNumber":1,"Size":1000202788864,"DriveLetter":"C","AccessPaths":"C:\\"},
+ "volumes":null,
+ "parents":null}

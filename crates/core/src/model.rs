@@ -126,6 +126,10 @@ pub struct Device {
     pub partition_table: Option<String>,
     pub logical_sector: u32,
     pub physical_sector: u32,
+    /// Marcado pela plataforma como disco do sistema/boot (Windows: IsSystem/
+    /// IsBoot/%SystemDrive%). No Linux o sistema é detectado pelas montagens.
+    #[serde(default)]
+    pub system_disk: bool,
     /// Montagens do disco inteiro (sem tabela de partição) e de camadas
     /// empilhadas diretamente sobre ele.
     pub mountpoints: Vec<String>,

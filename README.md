@@ -23,6 +23,16 @@ Requer amd64 com Ubuntu 24.04+, Mint 22+ ou Debian 13+. Impressão digital da ch
 `70E1 1B52 B3A3 FBB9 C0EE A95F 4695 DA6D E72E 8FAF`. O `.deb` avulso (com `.sha256`) também
 está em cada [release](https://github.com/huriellopes/usbkeeper/releases).
 
+## Windows (em andamento)
+
+Na versão de desenvolvimento, no Windows já funcionam `list`, `info`, `health` (SMART e
+varredura só leitura), `bench` (leitura), `history`, `report`, `recomendar` e `guia`.
+O disco aceita várias formas de nome: `usbkeeper info E:`, `info 1` ou `info PhysicalDrive1`.
+Ler o disco exige um **terminal como administrador** (ou `sudo usbkeeper …` no Windows 11 24H2+).
+Para o SMART, instale o smartmontools: `winget install smartmontools.smartmontools`.
+Formatar, apagar, imagem/ISO, reparar, montar e remover chegam na próxima etapa, e a janela e o
+instalador `.msi` depois dela.
+
 ## Interface gráfica
 
 ```sh
@@ -256,7 +266,7 @@ O WSL2 não enxerga USB do Windows. Use [usbipd-win](https://github.com/dorssel/
 - [x] **M2**: `fake-check` (rápido estilo f3probe e completo grava+verifica) e `bench`
 - [x] **M2b**: `format --max-size` para reaproveitar só a capacidade real de um falso (como o f3fix)
 - [x] **M3**: `health` (SMART via smartctl + varredura), histórico SQLite, laudo HTML/PDF
-- [ ] **M4**: Windows
+- [ ] **M4** (M4a base do Windows ✔): Windows
 - [x] **M5**: GUI Tauri 2
 - [x] **M5b**: guia de ajuda (CLI e janela) e remoção segura em destaque
 - [x] **M6a**: tema, assistente de formatação, verificar/reparar, montar

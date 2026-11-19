@@ -8,7 +8,7 @@ export function view(over: Partial<DeviceView> & { model?: string; path?: string
     device: {
       name: path.replace("/dev/", ""), path, size_bytes: 64_000_000_000, transport: "usb", removable: true,
       hotplug: true, read_only: false, vendor: null, model: model ?? "Pen", serial: "ABC",
-      partition_table: "dos", logical_sector: 512, physical_sector: 512, mountpoints: [], partitions: [],
+      partition_table: "dos", logical_sector: 512, physical_sector: 512, system_disk: false, mountpoints: [], partitions: [],
       usb: { vendor_id: "0951", product_id: "1666", manufacturer: null, product: null, usb_version: "3.20", speed: "high" },
     },
     refusals: [], is_system: false, confirmation_token: "ABC", history_key: "0951:1666:ABC",

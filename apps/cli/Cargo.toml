@@ -21,6 +21,9 @@ anyhow.workspace = true
 [target.'cfg(target_os = "linux")'.dependencies]
 usbkeeper-linux.workspace = true
 
+[target.'cfg(windows)'.dependencies]
+usbkeeper-windows.workspace = true
+
 [dev-dependencies]
 tempfile.workspace = true
 

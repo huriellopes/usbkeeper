@@ -3,6 +3,7 @@ resolver = "3"
 members = [
     "crates/core",
     "crates/platform-linux",
+    "crates/platform-windows",
     "crates/smart",
     "crates/history",
     "crates/guide",
@@ -18,6 +19,7 @@ repository = "https://github.com/huriellopes/usbkeeper"
 
 [workspace.dependencies]
 usbkeeper-core = { path = "crates/core" }
+usbkeeper-windows = { path = "crates/platform-windows" }
 usbkeeper-linux = { path = "crates/platform-linux" }
 usbkeeper-smart = { path = "crates/smart" }
 usbkeeper-history = { path = "crates/history" }
@@ -34,6 +36,7 @@ tauri = { version = "2", features = [] }
 tauri-build = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
 sha2 = "0.10"
+windows = { version = "0.61", features = ["Win32_Foundation", "Win32_Storage_FileSystem", "Win32_System_IO", "Win32_System_Ioctl", "Win32_Security", "Win32_System_Threading"] }
 zstd = "0.13"
 pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }
 ctrlc = "3"
