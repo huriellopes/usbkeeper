@@ -99,6 +99,32 @@ pub fn settle() {
     }
 }
 
+/// Descarta (TRIM) o disco inteiro com `blkdiscard -f`. Muito rápido em
+/// SSD/NVMe; muitas pontes USB e pendrives não aceitam.
+pub fn discard(device_path: &str) -> Result<(), CoreError> {
+    let blkdiscard = find_tool("blkdiscard").ok_or_else(|| CoreError::MissingTool {
+        tool: "blkdiscard".into(),
+        package: "util-linux".into(),
+    })?;
+    let out = Command::new(blkdiscard)
+        .args(["-f", device_path])
+        .env("LC_ALL", "C")
+        .output()?;
+    if out.status.success() {
+        return Ok(());
+    }
+    let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
+    if stderr.to_lowercase().contains("not supported") {
+        return Err(CoreError::Backend(
+            "este dispositivo (ou a ponte USB) não aceita descarte; use sobrescrever".into(),
+        ));
+    }
+    Err(CoreError::CommandFailed {
+        command: format!("blkdiscard -f {device_path}"),
+        stderr,
+    })
+}
+
 pub fn is_root() -> bool {
     fs::read_to_string("/proc/self/status")
         .ok()
