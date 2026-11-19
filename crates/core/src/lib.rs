@@ -1,6 +1,7 @@
 //! Núcleo portátil do usbkeeper: modelo de dados, regras de segurança e
 //! contratos que cada backend de plataforma implementa.
 
+pub mod advice;
 pub mod bench;
 pub mod blockdev;
 pub mod error;
