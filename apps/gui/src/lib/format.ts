@@ -18,13 +18,13 @@ export function duration(secs: number): string {
 
 const LABELS: Record<string, string> = {
   genuine: "genuíno", fake: "FALSO", damaged: "defeito", good: "saudável", warning: "atenção",
-  failing: "FALHANDO", unknown: "sem SMART", clean: "sem erros", unreadable: "ILEGÍVEL",
+  failing: "FALHANDO", unknown: "sem SMART", clean: "sem erros", unreadable: "ILEGÍVEL", fixed: "corrigido", errors: "com erros",
 };
 export const verdictLabel = (v?: string | null) => (v ? LABELS[v] ?? v : "");
 
 export function verdictTone(v?: string | null): "ok" | "warn" | "bad" | "muted" {
-  if (v === "genuine" || v === "good" || v === "clean") return "ok";
+  if (v === "genuine" || v === "good" || v === "clean" || v === "fixed") return "ok";
   if (v === "warning" || v === "damaged") return "warn";
-  if (v === "fake" || v === "failing" || v === "unreadable") return "bad";
+  if (v === "fake" || v === "failing" || v === "unreadable" || v === "errors") return "bad";
   return "muted";
 }

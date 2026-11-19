@@ -13,16 +13,18 @@ import { ConfirmDialog } from "../ops/ConfirmDialog";
 import { OperationBar } from "../ops/OperationBar";
 import { useOperation } from "../ops/useOperation";
 import { Overview } from "./Overview";
+import { RepairTab } from "../repair/RepairTab";
 import { InUseCard } from "../remove/InUseCard";
 import { RemoveButton } from "../remove/RemoveButton";
 
-export type TabId = "overview" | "check" | "health" | "bench" | "format" | "history";
+export type TabId = "overview" | "check" | "health" | "bench" | "format" | "repair" | "history";
 export const TABS: { id: TabId; label: string; destructive: boolean }[] = [
   { id: "overview", label: "Visão geral", destructive: false },
   { id: "check", label: "Verificar", destructive: true },
   { id: "health", label: "Saúde", destructive: false },
   { id: "bench", label: "Velocidade", destructive: false },
   { id: "format", label: "Formatar", destructive: true },
+  { id: "repair", label: "Reparar", destructive: true },
   { id: "history", label: "Histórico", destructive: false },
 ];
 
@@ -155,6 +157,7 @@ export function DevicePanel({ view }: { view: DeviceView }) {
             {formatOp.error && <p className="mt-4" style={{ color: "var(--bad)" }}>{formatOp.error}</p>}
           </>
         )}
+        {tab === "repair" && <RepairTab view={view} />}
         {tab === "history" && <HistoryTab view={view} />}
       </div>
       {formatOp.confirm && <ConfirmDialog token={view.confirmation_token} confirmLabel="Formatar" {...formatOp.confirm} />}

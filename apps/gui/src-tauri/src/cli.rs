@@ -31,6 +31,10 @@ pub enum OpRequest {
     Eject {
         device: String,
     },
+    Repair {
+        device: String,
+        check: bool,
+    },
 }
 
 impl OpRequest {
@@ -40,7 +44,8 @@ impl OpRequest {
             | OpRequest::Health { device, .. }
             | OpRequest::Bench { device, .. }
             | OpRequest::Format { device, .. }
-            | OpRequest::Eject { device } => device,
+            | OpRequest::Eject { device }
+            | OpRequest::Repair { device, .. } => device,
         }
     }
 
@@ -51,6 +56,7 @@ impl OpRequest {
             OpRequest::Bench { .. } => "bench",
             OpRequest::Format { .. } => "format",
             OpRequest::Eject { .. } => "eject",
+            OpRequest::Repair { .. } => "repair",
         }
     }
 
@@ -125,6 +131,15 @@ pub fn args(req: &OpRequest, token: &str, allow_non_usb: bool) -> Vec<String> {
                 a.extend(["--max-size".into(), m.to_string()]);
             }
             confirm(&mut a);
+        }
+        OpRequest::Repair { device, check } => {
+            a.extend(["repair".into(), device.clone()]);
+            if *check {
+                // Verificar não altera nada: só desmonta, sem pedir a série.
+                a.extend(["--check".into(), "--unmount".into()]);
+            } else {
+                confirm(&mut a);
+            }
         }
         OpRequest::Eject { device } => {
             // --progress-json: erro em JSON com os processos que prendem o disco.
@@ -295,6 +310,40 @@ mod tests {
         assert!(a.windows(2).any(|w| w == ["-l", "Fotos 2026"]));
         assert!(a.windows(2).any(|w| w == ["--max-size", "7000000000"]));
         assert!(a.contains(&"--unmount".to_string()));
+    }
+
+    #[test]
+    fn repair_check_never_confirms_and_repair_does() {
+        let a = args(
+            &OpRequest::Repair {
+                device: "/dev/sdb".into(),
+                check: true,
+            },
+            "ABC",
+            false,
+        );
+        assert_eq!(
+            a,
+            s(&[
+                "repair",
+                "/dev/sdb",
+                "--check",
+                "--unmount",
+                "--json",
+                "--progress-json",
+                "--cancel-stdin"
+            ])
+        );
+        let a = args(
+            &OpRequest::Repair {
+                device: "/dev/sdb".into(),
+                check: false,
+            },
+            "ABC",
+            false,
+        );
+        assert!(a.windows(2).any(|w| w == ["--yes-i-know", "ABC"]));
+        assert!(!a.contains(&"--check".to_string()));
     }
 
     #[test]
