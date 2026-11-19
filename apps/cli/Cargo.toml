@@ -12,9 +12,14 @@ usbkeeper-history.workspace = true
 usbkeeper-smart.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+sha2.workspace = true
+zstd.workspace = true
 clap.workspace = true
 ctrlc.workspace = true
 anyhow.workspace = true
 
 [target.'cfg(target_os = "linux")'.dependencies]
 usbkeeper-linux.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
