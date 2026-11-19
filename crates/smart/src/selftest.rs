@@ -170,7 +170,7 @@ pub fn parse_state(json: &str, kind: SelfTestKind) -> Result<SelfTestState, Stri
 }
 
 fn smartctl() -> Result<std::path::PathBuf, String> {
-    find_smartctl().ok_or_else(|| "smartctl não encontrado; instale o pacote smartmontools".into())
+    find_smartctl().ok_or_else(|| crate::NOT_INSTALLED.into())
 }
 
 fn first_message(v: &Value) -> Option<String> {
@@ -183,7 +183,14 @@ fn first_message(v: &Value) -> Option<String> {
 /// trouxe o SMART (ver `read`).
 pub fn start(device: &str, dtype: &str, kind: SelfTestKind) -> Result<(), String> {
     let out = Command::new(smartctl()?)
-        .args(["-j", "-d", dtype, "-t", kind.arg(), device])
+        .args([
+            "-j",
+            "-d",
+            dtype,
+            "-t",
+            kind.arg(),
+            &crate::smartctl_device(device),
+        ])
         .output()
         .map_err(|e| e.to_string())?;
     let v: Value = serde_json::from_slice(&out.stdout).unwrap_or(Value::Null);
@@ -201,7 +208,15 @@ pub fn start(device: &str, dtype: &str, kind: SelfTestKind) -> Result<(), String
 
 pub fn poll(device: &str, dtype: &str, kind: SelfTestKind) -> Result<SelfTestState, String> {
     let out = Command::new(smartctl()?)
-        .args(["-j", "-d", dtype, "-c", "-l", "selftest", device])
+        .args([
+            "-j",
+            "-d",
+            dtype,
+            "-c",
+            "-l",
+            "selftest",
+            &crate::smartctl_device(device),
+        ])
         .output()
         .map_err(|e| e.to_string())?;
     parse_state(&String::from_utf8_lossy(&out.stdout), kind)
@@ -209,7 +224,7 @@ pub fn poll(device: &str, dtype: &str, kind: SelfTestKind) -> Result<SelfTestSta
 
 pub fn abort(device: &str, dtype: &str) -> Result<(), String> {
     let out = Command::new(smartctl()?)
-        .args(["-d", dtype, "-X", device])
+        .args(["-d", dtype, "-X", &crate::smartctl_device(device)])
         .output()
         .map_err(|e| e.to_string())?;
     if out.status.success() {

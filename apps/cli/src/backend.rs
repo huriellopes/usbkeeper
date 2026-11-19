@@ -2,6 +2,10 @@
 
 use usbkeeper_core::{BlockDevice, CoreError, Ejector, Enumerator, Formatter, Mounts, Repairer};
 
+/// Resposta no Windows às operações que chegam na M4b.
+pub const WINDOWS_NEXT: &str = "no Windows esta operação chega na próxima etapa (M4b); \
+     por enquanto funcionam list, info, health, bench (leitura), history, report, recomendar e guia";
+
 pub type OpenRaw = fn(&str, bool) -> Result<Box<dyn BlockDevice>, CoreError>;
 
 pub struct Backend {
@@ -32,38 +36,77 @@ pub fn backend(include_virtual: bool) -> Backend {
     }
 }
 
-#[cfg(not(target_os = "linux"))]
-pub fn backend(_include_virtual: bool) -> Backend {
-    use usbkeeper_core::{Device, Holder, Step, format::FormatRequest};
+#[cfg(windows)]
+pub fn backend(include_virtual: bool) -> Backend {
+    use usbkeeper_windows::{RawDevice, WindowsEnumerator};
+    let next = || Box::new(unsupported::Unsupported(WINDOWS_NEXT));
+    Backend {
+        enumerator: Box::new(WindowsEnumerator { include_virtual }),
+        formatter: next(),
+        mounts: next(),
+        ejector: next(),
+        repairer: next(),
+        open_raw: |path, write| {
+            if write {
+                return Err(CoreError::Backend(WINDOWS_NEXT.into()));
+            }
+            Ok(Box::new(RawDevice::open(path, false)?))
+        },
+    }
+}
 
-    struct Unsupported;
-    fn err() -> CoreError {
-        CoreError::Backend(
-            "plataforma ainda não suportada (Windows e macOS chegam nas próximas etapas)".into(),
-        )
+#[cfg(not(any(target_os = "linux", windows)))]
+pub fn backend(_include_virtual: bool) -> Backend {
+    let none = || Box::new(unsupported::Unsupported(unsupported::LATER));
+    Backend {
+        enumerator: none(),
+        formatter: none(),
+        mounts: none(),
+        ejector: none(),
+        repairer: none(),
+        open_raw: |_, _| Err(CoreError::Backend(unsupported::LATER.into())),
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+pub mod unsupported {
+    use usbkeeper_core::{
+        CoreError, Device, Ejector, Enumerator, Formatter, Holder, Mounts, Repairer, Step,
+        format::FormatRequest,
+    };
+
+    #[cfg_attr(windows, allow(dead_code))]
+    pub const LATER: &str = "plataforma ainda não suportada (macOS chega numa próxima etapa)";
+
+    pub struct Unsupported(pub &'static str);
+
+    impl Unsupported {
+        fn err(&self) -> CoreError {
+            CoreError::Backend(self.0.into())
+        }
     }
     impl Enumerator for Unsupported {
         fn list(&self) -> Result<Vec<Device>, CoreError> {
-            Err(err())
+            Err(self.err())
         }
     }
     impl Formatter for Unsupported {
         fn plan(&self, _: &Device, _: &FormatRequest) -> Result<Vec<Step>, CoreError> {
-            Err(err())
+            Err(self.err())
         }
         fn execute(&self, _: &[Step]) -> Result<(), CoreError> {
-            Err(err())
+            Err(self.err())
         }
     }
     impl Mounts for Unsupported {
         fn unmount_all(&self, _: &Device) -> Result<(), CoreError> {
-            Err(err())
+            Err(self.err())
         }
         fn holders(&self, _: &Device) -> Vec<Holder> {
             Vec::new()
         }
         fn mount_all(&self, _: &Device) -> Result<Vec<String>, CoreError> {
-            Err(err())
+            Err(self.err())
         }
     }
     impl Repairer for Unsupported {
@@ -73,20 +116,12 @@ pub fn backend(_include_virtual: bool) -> Backend {
             _: bool,
             _: &mut dyn FnMut(&str, u64, u64),
         ) -> Result<usbkeeper_core::repair::RepairReport, CoreError> {
-            Err(err())
+            Err(self.err())
         }
     }
     impl Ejector for Unsupported {
         fn power_off(&self, _: &Device) -> Result<(), CoreError> {
-            Err(err())
+            Err(self.err())
         }
-    }
-    Backend {
-        enumerator: Box::new(Unsupported),
-        formatter: Box::new(Unsupported),
-        mounts: Box::new(Unsupported),
-        ejector: Box::new(Unsupported),
-        repairer: Box::new(Unsupported),
-        open_raw: |_, _| Err(err()),
     }
 }

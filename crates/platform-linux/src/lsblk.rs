@@ -132,6 +132,7 @@ fn to_device(node: Node) -> Device {
         partition_table: clean(node.pttype),
         logical_sector: node.log_sec as u32,
         physical_sector: node.phy_sec as u32,
+        system_disk: false,
         mountpoints: dedup(stacked),
         partitions,
         usb: None,

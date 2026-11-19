@@ -5,6 +5,11 @@ import type { UsbInfo } from "./UsbInfo";
 
 export type Device = { name: string, path: string, size_bytes: number, transport: Transport, removable: boolean, hotplug: boolean, read_only: boolean, vendor: string | null, model: string | null, serial: string | null, partition_table: string | null, logical_sector: number, physical_sector: number, 
 /**
+ * Marcado pela plataforma como disco do sistema/boot (Windows: IsSystem/
+ * IsBoot/%SystemDrive%). No Linux o sistema é detectado pelas montagens.
+ */
+system_disk: boolean, 
+/**
  * Montagens do disco inteiro (sem tabela de partição) e de camadas
  * empilhadas diretamente sobre ele.
  */

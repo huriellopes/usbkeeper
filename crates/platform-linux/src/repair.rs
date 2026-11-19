@@ -236,6 +236,7 @@ mod tests {
             partition_table: Some("dos".into()),
             logical_sector: 512,
             physical_sector: 512,
+            system_disk: false,
             mountpoints: vec![],
             partitions: parts
                 .iter()
