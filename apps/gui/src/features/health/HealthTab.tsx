@@ -3,6 +3,7 @@ import type { HealthReport } from "../../lib/bindings/HealthReport";
 import type { ScanReport } from "../../lib/bindings/ScanReport";
 import { humanBytes, verdictLabel, verdictTone } from "../../lib/format";
 import { useOperation } from "../ops/useOperation";
+import { SelfTestPanel } from "./SelfTestPanel";
 import { GUIDE } from "../../lib/guideLinks";
 import { HelpButton } from "../help/HelpButton";
 
@@ -65,6 +66,7 @@ export function HealthTab({ view }: { view: DeviceView }) {
           {res.scan.slow_chunks > 0 && <p>{res.scan.slow_chunks} trechos lentos (pior: {res.scan.slowest_chunk_ms} ms).</p>}
         </section>
       )}
+      <SelfTestPanel view={view} />
     </div>
   );
 }

@@ -1,0 +1,4 @@
+{"json_format_version":[1,0],"smartctl":{"exit_status":0},"device":{"type":"sat"},
+ "ata_smart_data":{"self_test":{"status":{"value":249,"string":"in progress, 90% of test remaining","remaining_percent":90},
+   "polling_minutes":{"short":2,"extended":110}}},
+ "ata_smart_self_test_log":{"standard":{"revision":1,"table":[]}}}

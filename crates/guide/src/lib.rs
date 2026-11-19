@@ -10,8 +10,8 @@ pub use terminal::to_terminal;
 macro_rules! sources {
     ($($id:literal),* $(,)?) => {
         /// Ids estáveis (usados pelos links "?" da interface e pela CLI).
-        pub const IDS: [&str; 13] = [$($id),*];
-        const SOURCES: [(&str, &str); 13] =
+        pub const IDS: [&str; 14] = [$($id),*];
+        const SOURCES: [(&str, &str); 14] =
             [$(($id, include_str!(concat!("../topics/", $id, ".md")))),*];
     };
 }
@@ -28,11 +28,12 @@ sources!(
     "velocidade",
     "remover",
     "reparar",
+    "apagar",
     "protecoes",
     "glossario",
 );
 
-const ALIASES: [(&str, &str); 15] = [
+const ALIASES: [(&str, &str); 17] = [
     ("mbr", "mbr-gpt"),
     ("gpt", "mbr-gpt"),
     ("fat32", "sistemas-de-arquivos"),
@@ -48,6 +49,8 @@ const ALIASES: [(&str, &str); 15] = [
     ("fsck", "reparar"),
     ("repair", "reparar"),
     ("reparo", "reparar"),
+    ("wipe", "apagar"),
+    ("apagar-tudo", "apagar"),
 ];
 
 #[derive(Debug, Clone)]
@@ -114,11 +117,11 @@ mod tests {
     #[test]
     fn every_topic_has_title_summary_and_unique_id() {
         let all = topics();
-        assert_eq!(all.len(), 13);
+        assert_eq!(all.len(), 14);
         let mut ids: Vec<_> = all.iter().map(|t| t.id).collect();
         ids.sort();
         ids.dedup();
-        assert_eq!(ids.len(), 13);
+        assert_eq!(ids.len(), 14);
         for t in &all {
             assert!(!t.title.is_empty() && !t.title.starts_with('#'), "{}", t.id);
             assert!(t.summary.len() > 20, "resumo curto em {}", t.id);
@@ -151,7 +154,7 @@ mod tests {
     }
 
     /// Fatos obrigatórios por tópico: o texto pode variar, estes pontos não.
-    const MUST: [(&str, &[&str]); 13] = [
+    const MUST: [(&str, &[&str]); 14] = [
         ("comecar", &["backup", "disco do sistema", "série", "senha"]),
         (
             "tipos",
@@ -215,6 +218,9 @@ mod tests {
                 "pendrive",
                 "varredura",
                 "trocar",
+                "autoteste",
+                "curto",
+                "longo",
             ],
         ),
         ("velocidade", &["MB/s", "IOPS", "4K", "sequencial", "cache"]),
@@ -238,6 +244,20 @@ mod tests {
                 "backup",
                 "Saúde",
                 "corrigido",
+            ],
+        ),
+        (
+            "apagar",
+            &[
+                "formatar",
+                "reserva",
+                "zeros",
+                "aleatório",
+                "passada",
+                "verifica",
+                "TRIM",
+                "criptografia",
+                "secure erase",
             ],
         ),
         (

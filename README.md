@@ -3,8 +3,8 @@
 Gerenciador multiplataforma de pendrives e HDs externos: listar, formatar, verificar saúde,
 detectar pendrives **falsificados** (capacidade adulterada) e medir velocidade, com histórico por número de série.
 
-> Status: **M6a**: CLI e **interface gráfica** no Linux, com **guia de ajuda**, **assistente de formatação**,
-> **verificar/reparar**, **montar** e tema claro/escuro: listar, formatar, ejetar, **detectar falsificados**,
+> Status: **M6b**: CLI e **interface gráfica** no Linux, com **guia de ajuda**, **assistente de formatação**,
+> **verificar/reparar**, **montar**, **autoteste SMART**, **apagar com segurança** e tema claro/escuro: listar, formatar, ejetar, **detectar falsificados**,
 > velocidade, **saúde (SMART + varredura)**, **histórico** e **laudo HTML**. Windows e macOS chegam nas próximas etapas (ver [Roadmap](#roadmap)).
 
 ## Interface gráfica
@@ -68,6 +68,29 @@ verificação** feita logo depois. A tabela de partições é só verificada (`s
 
 `usbkeeper montar sdb` (ou **Montar** / **Abrir pasta** na janela) monta via udisks, sem senha,
 no mesmo lugar que o gerenciador de arquivos usaria. No Windows e no macOS o próprio sistema monta.
+
+## Autoteste SMART
+
+```sh
+sudo usbkeeper autoteste sda --curto --esperar   # ~2 min; --longo lê a superfície inteira (horas)
+```
+
+O próprio disco se testa no firmware, sem alterar dados. Cancelar aborta o teste no disco. O
+resultado entra no histórico e o `health` mostra os últimos autotestes. Muitas pontes USB e
+pendrives não suportam (o usbkeeper explica).
+
+## Apagar com segurança
+
+```sh
+sudo usbkeeper apagar sdb --verificar --unmount              # zeros, 1 passada, relê e confere
+sudo usbkeeper apagar sdb --aleatorio --passadas 2 --unmount # dados aleatórios
+sudo usbkeeper apagar sdb --descartar --unmount              # TRIM: rápido em SSD/NVMe que aceitem
+```
+
+Mesmas travas do formatar (série, disco do sistema nunca). Em pendrive, cartão e SSD, sobrescrever
+**não garante** apagar as áreas de reserva do controlador: para garantia total, criptografe desde o
+início (veja `usbkeeper guia apagar`). O *secure erase* de firmware não é usado (pode inutilizar o
+disco se interrompido).
 
 ## Tema
 
@@ -209,7 +232,7 @@ O WSL2 não enxerga USB do Windows. Use [usbipd-win](https://github.com/dorssel/
 - [x] **M5**: GUI Tauri 2
 - [x] **M5b**: guia de ajuda (CLI e janela) e remoção segura em destaque
 - [x] **M6a**: tema, assistente de formatação, verificar/reparar, montar
-- [ ] **M6b**: autoteste SMART e apagar com segurança
+- [x] **M6b**: autoteste SMART e apagar com segurança
 - [ ] **M6c**: imagem do disco e gravar ISO de boot
 - [ ] **M7**: macOS
 

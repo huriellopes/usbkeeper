@@ -1,0 +1,3 @@
+{"json_format_version":[1,0],"smartctl":{"exit_status":0},"device":{"type":"nvme"},
+ "nvme_self_test_log":{"current_self_test_operation":{"value":1,"string":"Short self-test in progress"},
+   "current_self_test_completion_percent":30,"table":[]}}

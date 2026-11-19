@@ -35,6 +35,19 @@ pub enum OpRequest {
         device: String,
         check: bool,
     },
+    /// "selftest" (não "self_test"), igual ao nome da operação na CLI e no histórico.
+    #[serde(rename = "selftest")]
+    SelfTest {
+        device: String,
+        long: bool,
+    },
+    Wipe {
+        device: String,
+        random: bool,
+        passes: u8,
+        verify: bool,
+        discard: bool,
+    },
 }
 
 impl OpRequest {
@@ -45,7 +58,9 @@ impl OpRequest {
             | OpRequest::Bench { device, .. }
             | OpRequest::Format { device, .. }
             | OpRequest::Eject { device }
-            | OpRequest::Repair { device, .. } => device,
+            | OpRequest::Repair { device, .. }
+            | OpRequest::SelfTest { device, .. }
+            | OpRequest::Wipe { device, .. } => device,
         }
     }
 
@@ -57,6 +72,8 @@ impl OpRequest {
             OpRequest::Format { .. } => "format",
             OpRequest::Eject { .. } => "eject",
             OpRequest::Repair { .. } => "repair",
+            OpRequest::SelfTest { .. } => "selftest",
+            OpRequest::Wipe { .. } => "wipe",
         }
     }
 
@@ -140,6 +157,36 @@ pub fn args(req: &OpRequest, token: &str, allow_non_usb: bool) -> Vec<String> {
             } else {
                 confirm(&mut a);
             }
+        }
+        OpRequest::SelfTest { device, long } => {
+            // Só lê: nunca pede a série.
+            a.extend([
+                "selftest".into(),
+                device.clone(),
+                if *long { "--longo" } else { "--curto" }.into(),
+                "--esperar".into(),
+            ]);
+        }
+        OpRequest::Wipe {
+            device,
+            random,
+            passes,
+            verify,
+            discard,
+        } => {
+            a.extend(["wipe".into(), device.clone()]);
+            if *discard {
+                a.push("--descartar".into());
+            } else {
+                if *random {
+                    a.push("--aleatorio".into());
+                }
+                a.extend(["--passadas".into(), passes.clamp(&1, &3).to_string()]);
+                if *verify {
+                    a.push("--verificar".into());
+                }
+            }
+            confirm(&mut a);
         }
         OpRequest::Eject { device } => {
             // --progress-json: erro em JSON com os processos que prendem o disco.
@@ -344,6 +391,60 @@ mod tests {
         );
         assert!(a.windows(2).any(|w| w == ["--yes-i-know", "ABC"]));
         assert!(!a.contains(&"--check".to_string()));
+    }
+
+    #[test]
+    fn selftest_and_wipe_args() {
+        let a = args(
+            &OpRequest::SelfTest {
+                device: "/dev/sda".into(),
+                long: false,
+            },
+            "ABC",
+            false,
+        );
+        assert_eq!(
+            a,
+            s(&[
+                "selftest",
+                "/dev/sda",
+                "--curto",
+                "--esperar",
+                "--json",
+                "--progress-json",
+                "--cancel-stdin"
+            ])
+        );
+        let a = args(
+            &OpRequest::Wipe {
+                device: "/dev/sdb".into(),
+                random: true,
+                passes: 9,
+                verify: true,
+                discard: false,
+            },
+            "ABC",
+            false,
+        );
+        assert!(a.contains(&"--aleatorio".to_string()) && a.contains(&"--verificar".to_string()));
+        assert!(
+            a.windows(2).any(|w| w == ["--passadas", "3"]),
+            "passadas limitadas a 3"
+        );
+        assert!(a.windows(2).any(|w| w == ["--yes-i-know", "ABC"]));
+        let d = args(
+            &OpRequest::Wipe {
+                device: "/dev/sdb".into(),
+                random: true,
+                passes: 2,
+                verify: true,
+                discard: true,
+            },
+            "ABC",
+            false,
+        );
+        assert!(d.contains(&"--descartar".to_string()));
+        assert!(!d.contains(&"--aleatorio".to_string()) && !d.contains(&"--passadas".to_string()));
     }
 
     #[test]

@@ -6,8 +6,10 @@ mod health;
 mod machine;
 mod repair;
 mod report;
+mod selftest;
 mod store;
 mod view;
+mod wipe;
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
@@ -180,6 +182,44 @@ enum Command {
         device: String,
         #[arg(long)]
         allow_non_usb: bool,
+        /// Saída em JSON
+        #[arg(long)]
+        json: bool,
+    },
+    /// Autoteste SMART no próprio disco, curto (~2 min) ou longo; não altera dados (apelido: autoteste)
+    #[command(name = "selftest", alias = "autoteste")]
+    #[command(group(clap::ArgGroup::new("tipo").required(true).args(["curto", "longo"])))]
+    SelfTest {
+        device: String,
+        #[arg(long)]
+        curto: bool,
+        #[arg(long)]
+        longo: bool,
+        /// Acompanha até terminar (Ctrl+C aborta o teste no disco)
+        #[arg(long)]
+        esperar: bool,
+        /// Saída em JSON
+        #[arg(long)]
+        json: bool,
+    },
+    /// Apaga tudo para vender/doar: sobrescreve (ou descarta) o disco inteiro (apelido: apagar)
+    #[command(name = "wipe", alias = "apagar")]
+    Wipe {
+        device: String,
+        /// Dados aleatórios em vez de zeros
+        #[arg(long, conflicts_with = "descartar")]
+        aleatorio: bool,
+        /// Quantas passadas (1 a 3)
+        #[arg(long, default_value_t = 1, value_parser = clap::value_parser!(u8).range(1..=3), conflicts_with = "descartar")]
+        passadas: u8,
+        /// Relê tudo no fim e confere
+        #[arg(long, conflicts_with = "descartar")]
+        verificar: bool,
+        /// Descarte (TRIM) em vez de sobrescrever: rápido em SSD/NVMe
+        #[arg(long)]
+        descartar: bool,
+        #[command(flatten)]
+        guard: GuardArgs,
         /// Saída em JSON
         #[arg(long)]
         json: bool,
@@ -374,6 +414,43 @@ fn run(cli: Cli) -> Result<()> {
             allow_non_usb,
             json,
         } => destructive::mount(&backend(true), &device, allow_non_usb, json)?,
+        Command::SelfTest {
+            device,
+            longo,
+            esperar,
+            json,
+            ..
+        } => selftest::selftest(
+            &backend(true),
+            &device,
+            if longo {
+                usbkeeper_smart::selftest::SelfTestKind::Long
+            } else {
+                usbkeeper_smart::selftest::SelfTestKind::Short
+            },
+            esperar,
+            json,
+        )?,
+        Command::Wipe {
+            device,
+            aleatorio,
+            passadas,
+            verificar,
+            descartar,
+            guard,
+            json,
+        } => wipe::wipe(
+            &backend(true),
+            wipe::WipeArgs {
+                device,
+                random: aleatorio,
+                passes: passadas,
+                verify: verificar,
+                discard: descartar,
+                guard: guard.into(),
+                json,
+            },
+        )?,
         Command::Guia { topic, html } => match topic {
             None => {
                 println!("Tópicos do guia (usbkeeper guia <tópico>):\n");
@@ -466,6 +543,49 @@ mod tests {
     fn montar_parses() {
         let cli = Cli::try_parse_from(["usbkeeper", "montar", "sdb"]).unwrap();
         assert!(matches!(cli.command, Command::Mount { device, .. } if device == "sdb"));
+    }
+
+    #[test]
+    fn autoteste_and_apagar_parse() {
+        let cli =
+            Cli::try_parse_from(["usbkeeper", "autoteste", "sdb", "--curto", "--esperar"]).unwrap();
+        assert!(matches!(
+            cli.command,
+            Command::SelfTest {
+                curto: true,
+                longo: false,
+                esperar: true,
+                ..
+            }
+        ));
+        assert!(Cli::try_parse_from(["usbkeeper", "autoteste", "sdb"]).is_err());
+        assert!(
+            Cli::try_parse_from(["usbkeeper", "autoteste", "sdb", "--curto", "--longo"]).is_err()
+        );
+        let cli = Cli::try_parse_from([
+            "usbkeeper",
+            "apagar",
+            "sdb",
+            "--aleatorio",
+            "--passadas",
+            "2",
+            "--verificar",
+        ])
+        .unwrap();
+        assert!(matches!(
+            cli.command,
+            Command::Wipe {
+                aleatorio: true,
+                passadas: 2,
+                verificar: true,
+                ..
+            }
+        ));
+        assert!(Cli::try_parse_from(["usbkeeper", "apagar", "sdb", "--passadas", "4"]).is_err());
+        assert!(
+            Cli::try_parse_from(["usbkeeper", "apagar", "sdb", "--descartar", "--aleatorio"])
+                .is_err()
+        );
     }
 
     #[test]
