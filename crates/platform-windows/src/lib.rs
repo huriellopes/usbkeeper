@@ -4,6 +4,7 @@
 //! qualquer sistema (testada no CI Linux também); o que executa coisas é
 //! exclusivo do Windows.
 
+pub mod paths;
 pub mod storage;
 
 #[cfg(windows)]
