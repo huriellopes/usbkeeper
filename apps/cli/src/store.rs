@@ -138,6 +138,37 @@ pub fn verdict_name<T: serde::Serialize>(v: &T) -> String {
         .unwrap_or_default()
 }
 
+/// Do histórico: (capacidade real, limite sugerido) do último fake-check, se
+/// ele deu falso, e o último veredito de saúde. Não cria o banco só para ler.
+pub fn last_facts(device: &Device) -> (Option<(u64, u64)>, Option<String>) {
+    if !db_path().is_some_and(|p| p.exists()) {
+        return (None, None);
+    }
+    let Ok(h) = open() else {
+        return (None, None);
+    };
+    let Ok(events) = h.events(&device_info(device).key()) else {
+        return (None, None);
+    };
+    let fake = events
+        .iter()
+        .rev()
+        .find(|e| e.kind == usbkeeper_history::kind::FAKE_CHECK)
+        .filter(|e| e.verdict.as_deref() == Some("fake"))
+        .and_then(|e| {
+            Some((
+                e.data.get("real_bytes")?.as_u64()?,
+                e.data.get("suggested_max_bytes")?.as_u64()?,
+            ))
+        });
+    let health = events
+        .iter()
+        .rev()
+        .find(|e| e.kind == usbkeeper_history::kind::HEALTH)
+        .and_then(|e| e.verdict.clone());
+    (fake, health)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

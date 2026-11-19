@@ -69,6 +69,13 @@ pub fn precheck(device: &Device, guard: &Guard) -> Result<()> {
 pub fn confirm_and_take(b: &Backend, device: &Device, guard: &Guard) -> Result<Device> {
     ensure_writable(device)?;
     confirm(device, guard.yes_i_know.as_deref())?;
+    take(b, device, guard)
+}
+
+/// Desmonta (se `--unmount` foi pedido; o `precheck` já recusou o caso
+/// contrário) e relê o disco conferindo identidade e regras. Usado direto
+/// pelo `repair --check`, que não altera nada e por isso não pede a série.
+pub fn take(b: &Backend, device: &Device, guard: &Guard) -> Result<Device> {
     let identity = device.identity();
 
     if device.is_mounted() {

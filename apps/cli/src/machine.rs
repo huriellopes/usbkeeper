@@ -51,8 +51,13 @@ pub fn progress_line(phase: Phase, done: u64, total: u64) -> String {
 
 /// Etapa do `format` (não é uma `Phase` do core).
 pub fn step_line(label: &str, done: u64, total: u64) -> String {
+    step_line_phase("format", label, done, total)
+}
+
+/// Etapa de operações em passos (format, repair).
+pub fn step_line_phase(phase: &str, label: &str, done: u64, total: u64) -> String {
     serde_json::to_string(&Line {
-        phase: "format",
+        phase,
         label,
         done,
         total,
