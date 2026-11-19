@@ -1,0 +1,34 @@
+Package: usbkeeper
+Architecture: amd64
+Version: 0.5.1
+Priority: optional
+Maintainer: usbkeeper
+Installed-Size: 19862
+Depends: pkexec, util-linux, udisks2, libwebkit2gtk-4.1-0, libgtk-3-0
+Recommends: smartmontools, dosfstools, exfatprogs, ntfs-3g, e2fsprogs
+Filename: pool/main/u/usbkeeper/usbkeeper_0.5.1_amd64.deb
+Size: 6861176
+MD5sum: 6bae4d68d956ab34edfb07b3fde32c13
+SHA1: a3715149ce4b0d2eba6d1007d27abf49c7b1c189
+SHA256: c5aae80c9a2c1afd3e7807e786e623e30efee88d2f0375643fea05b4b7276d50
+SHA512: cd6d2e5ed82d3a3cf02bc6857245020a4185e7fef126e3c5e89750dcdc228b258878f659194b204aa4d08a94e35b6b81932dc46bb87fed4c258daf9d7e2c0304
+Description: Pendrives e HDs externos: falsificação, saúde, formatação
+ (none)
+
+Package: usbkeeper
+Architecture: amd64
+Version: 0.8.0
+Priority: optional
+Maintainer: usbkeeper
+Installed-Size: 21301
+Depends: pkexec, util-linux, udisks2, libwebkit2gtk-4.1-0, libgtk-3-0
+Recommends: smartmontools, dosfstools, exfatprogs, ntfs-3g, e2fsprogs
+Filename: pool/main/u/usbkeeper/usbkeeper_0.8.0_amd64.deb
+Size: 7448272
+MD5sum: ea2a8ded2837e7ffda43acfe19fdd964
+SHA1: 1ecc3c5efbd98681703fb433b7b83f7b120c1b44
+SHA256: a5b70ed7edd1d17e5acadcab26d93d9cd97342f6fb9fba351b33ad48697748e5
+SHA512: 6edb4b2622ba08da975a9ae6a1628261a75e92a867e62d60eb68cc55aeb3a3ac960282ef7e5fad19ceee4803faf76ac0f83c639ab0c4c4766e12a39a6f6268f5
+Description: Pendrives e HDs externos: falsificação, saúde, formatação
+ (none)
+

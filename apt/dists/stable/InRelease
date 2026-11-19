@@ -1,0 +1,30 @@
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA512
+
+Architectures: amd64
+Codename: stable
+Components: main
+Date: Thu, 19 Nov 2026 12:09:30 +0000
+Description: usbkeeper: pendrives e HDs externos
+Label: usbkeeper
+Origin: usbkeeper
+Suite: stable
+MD5Sum:
+ f2e24ab7f9e5f37ccd676948f9085f48             1424 main/binary-amd64/Packages
+ 72273428a034fc7b4a997f664c02c009              723 main/binary-amd64/Packages.gz
+SHA1:
+ 0ed0563a974d0d630c417d7f297559e8f8dbf99b             1424 main/binary-amd64/Packages
+ cb57da685d6f3f30e15f4d5a53d4c9c2d855e42d              723 main/binary-amd64/Packages.gz
+SHA256:
+ 95b749df85743e6a9cb4d4d089651bde8c430e9fe8140988d76c3cd1f3eddc44             1424 main/binary-amd64/Packages
+ 48ec3c387c8e2fa576f6b26c147681e43c7bbae7d4891bd412e2de4e8a51d241              723 main/binary-amd64/Packages.gz
+SHA512:
+ c29c051a79e910cec006c6878c097431f75aaa608097914c0f3408c61334dc13dbf16281e64aee906ef9afacb6ad2ec8f920a846a28204033f437bc5a82700a0             1424 main/binary-amd64/Packages
+ 992e29fb9bcde71895e1d74e8f32df4b4f274306f20b43532e17a7925a5d6cce3bf69c594097d30a2a732679c3b4b82dfc17377ac692e0fb6121d0731512308d              723 main/binary-amd64/Packages.gz
+-----BEGIN PGP SIGNATURE-----
+
+iHUEARYKAB0WIQRw4RtSs6P7ucDuqV9Gldpt5y6PrwUCav7m+gAKCRBGldpt5y6P
+r8oFAQCIlsGaqtqoVAOfNGLYOuSEdAN+DXFI9vUy5WF9p27zEAEAuu6PC/NKL7LY
+Ia5bQo0iZeVjkLHGySOj575ok0ROfw0=
+=kS88
+-----END PGP SIGNATURE-----
