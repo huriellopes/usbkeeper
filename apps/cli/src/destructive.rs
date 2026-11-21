@@ -45,11 +45,6 @@ pub struct FormatArgs {
 /// Recusa cedo (antes de mostrar plano ou pedir confirmação). Disco montado
 /// só passa se `--unmount` foi pedido.
 pub fn precheck(device: &Device, guard: &Guard) -> Result<()> {
-    // Antes de pedir a série: no Windows as operações que gravam vêm na M4b.
-    // `cfg!` (e não `#[cfg]`) para o resto compilar igual em todo sistema.
-    if cfg!(windows) {
-        bail!(crate::backend::WINDOWS_NEXT);
-    }
     let refusals: Vec<Refusal> = safety::check_target(device, guard.policy())
         .into_iter()
         .filter(|r| !(guard.unmount && matches!(r, Refusal::Mounted { .. })))
@@ -106,7 +101,13 @@ pub fn take(b: &Backend, device: &Device, guard: &Guard) -> Result<Device> {
             m.found.size_bytes
         );
     }
-    let refusals = safety::check_target(&current, guard.policy());
+    // No Windows o volume desmontado continua com a letra: quem protege é a
+    // trava tomada ao abrir o disco (falha se algo estiver em uso). No Linux a
+    // releitura continua pegando uma remontagem automática de última hora.
+    let refusals: Vec<Refusal> = safety::check_target(&current, guard.policy())
+        .into_iter()
+        .filter(|r| !(cfg!(windows) && guard.unmount && matches!(r, Refusal::Mounted { .. })))
+        .collect();
     if !refusals.is_empty() {
         return Err(refuse(&current, &refusals));
     }
@@ -325,6 +326,13 @@ pub fn eject(
     power_off: bool,
     json: bool,
 ) -> Result<()> {
+    // No Windows, desmontar sozinho não é remoção segura (ele remonta no
+    // próximo acesso): remover com segurança é o próprio desligamento.
+    if cfg!(windows) && !power_off {
+        bail!(
+            "no Windows não existe só desmontar: remover com segurança desliga o dispositivo (tire o --no-power-off)"
+        );
+    }
     let device = b.enumerator.get(device)?;
     let refusals = safety::check_target(&device, Policy { allow_non_usb });
     if let Some(r) = refusals
@@ -343,6 +351,11 @@ pub fn eject(
     }
     let mut note: Option<String> = None;
     if power_off && let Err(e) = b.ejector.power_off(&device) {
+        // No Windows a recusa é erro: o volume volta a montar sozinho, então
+        // "desmontado" não seria seguro.
+        if cfg!(windows) {
+            return Err(e.into());
+        }
         // Desmontou, mas o desligamento não é suportado (ex.: alguns leitores
         // de cartão): as gravações terminaram, é seguro tirar quando o LED parar.
         note = Some(e.to_string());
@@ -411,4 +424,41 @@ pub fn mount(b: &Backend, device: &str, allow_non_usb: bool, json: bool) -> Resu
         }
     }
     Ok(())
+}
+
+/// Subcomando oculto (Windows): grava o FAT32 próprio na partição de dados,
+/// com os volumes do disco travados. Chamado pelo plano do `format` quando a
+/// partição passa de 32 GiB (o Windows recusa).
+#[cfg(windows)]
+pub fn fat32_internal(device: &str, label: Option<&str>) -> Result<()> {
+    use usbkeeper_core::BlockDevice;
+    let n = usbkeeper_windows::paths::disk_number(device)
+        .with_context(|| format!("caminho inesperado: {device}"))?;
+    let (offset, size) = usbkeeper_windows::data_partition(n)?;
+    let mut dev = usbkeeper_windows::RawDevice::open(device, true)?;
+    if offset + size > dev.size() {
+        bail!("a partição de dados passa do fim do disco");
+    }
+    let seed = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos() as u32)
+        .unwrap_or(0);
+    let cancel = crate::checks::cancel_flag();
+    let mut reporter = crate::machine::Reporter::new(true);
+    usbkeeper_core::fat32::format(
+        &mut dev,
+        offset,
+        size,
+        label,
+        seed ^ (offset as u32),
+        &mut reporter,
+        &cancel,
+    )?;
+    reporter.finish();
+    Ok(())
+}
+
+#[cfg(not(windows))]
+pub fn fat32_internal(_device: &str, _label: Option<&str>) -> Result<()> {
+    bail!("subcomando interno do Windows")
 }

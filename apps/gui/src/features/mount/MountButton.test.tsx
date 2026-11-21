@@ -36,6 +36,14 @@ describe("montar / abrir pasta", () => {
     expect(openFolder).toHaveBeenCalledWith("/dev/sdb", "/media/ana/PEN");
   });
 
+  it("Windows: a letra (E:\\) abre no Explorer; pasta montada não", () => {
+    const v = view({ path: "\\\\.\\PhysicalDrive1" });
+    v.device.partitions = [part(["E:\\pasta", "E:\\"], "vfat")];
+    render(<MountButton view={v} />);
+    fireEvent.click(screen.getByRole("button", { name: "Abrir pasta" }));
+    expect(openFolder).toHaveBeenCalledWith("\\\\.\\PhysicalDrive1", "E:\\");
+  });
+
   it("sem sistema de arquivos montável: nada a mostrar", () => {
     const v = view();
     v.device.partitions = [part([], "crypto_LUKS")];

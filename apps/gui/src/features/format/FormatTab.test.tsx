@@ -2,8 +2,18 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { FormatTab } from "./FormatTab";
 import { view } from "../../test/fixtures";
+import { useApp } from "../../lib/store";
 
 describe("FormatTab", () => {
+  it("sem ext4 na plataforma (Windows): não oferece ext4", () => {
+    useApp.setState({ platform: { ext4: false, trim: false } });
+    render(<FormatTab view={view()} onSubmit={() => {}} busy={false} />);
+    const opts = [...(screen.getByLabelText("Sistema de arquivos") as HTMLSelectElement).options].map((o) => o.value);
+    expect(opts).not.toContain("ext4");
+    expect(opts).toContain("exfat");
+    useApp.setState({ platform: { ext4: true, trim: true } });
+  });
+
   it("preenche o limite sugerido e força MBR", () => {
     render(<FormatTab view={view()} initial={{ maxBytes: 7_000_000_000 }} onSubmit={() => {}} busy={false} />);
     expect((screen.getByLabelText(/Usar só os primeiros/) as HTMLInputElement).value).toBe("7000");

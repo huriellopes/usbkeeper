@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useApp } from "../../lib/store";
 import { advise } from "../../lib/api";
 import type { Advice } from "../../lib/bindings/Advice";
 import type { BigFiles } from "../../lib/bindings/BigFiles";
@@ -39,6 +40,7 @@ const TABLE: Record<string, string> = { mbr: "MBR", gpt: "GPT" };
 
 /** "Me ajude a escolher": duas perguntas → recomendação explicada. */
 export function AdviceCard({ device, onApply }: { device: string; onApply: (a: Advice) => void }) {
+  const ext4 = useApp((s) => s.platform.ext4);
   const [usage, setUsage] = useState<Usage | null>(null);
   const [big, setBig] = useState<BigFiles>("unknown");
   const [advice, setAdvice] = useState<Advice | null>(null);
@@ -50,7 +52,7 @@ export function AdviceCard({ device, onApply }: { device: string; onApply: (a: A
         <HelpButton topic={GUIDE.filesystems} label="sistemas de arquivos" />
       </h3>
       <p className="text-sm">Onde você vai usar?</p>
-      <Choice name="Onde vai usar" options={USAGES} value={usage} onChange={(v) => { setUsage(v); setAdvice(null); }} />
+      <Choice name="Onde vai usar" options={USAGES.filter((u) => u.id !== "linux_only" || ext4)} value={usage} onChange={(v) => { setUsage(v); setAdvice(null); }} />
       <p className="text-sm">Vai guardar arquivos maiores que 4 GB (filmes, imagens ISO, backups)?</p>
       <Choice name="Arquivos maiores que 4 GB" options={BIG} value={big} onChange={(v) => { setBig(v); setAdvice(null); }} />
       <button type="button" disabled={!usage} className="self-start rounded-md px-3 py-1 disabled:opacity-40" style={{ border: "1px solid var(--line)" }}

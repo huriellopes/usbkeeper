@@ -4230,6 +4230,7 @@ version = "0.8.0"
 dependencies = [
  "serde",
  "sha2 0.10.9",
+ "tempfile",
  "thiserror 2.0.21",
  "ts-rs",
 ]
@@ -4249,6 +4250,9 @@ dependencies = [
  "usbkeeper-history",
  "usbkeeper-linux",
  "usbkeeper-smart",
+ "usbkeeper-windows",
+ "webview2-com",
+ "windows-core 0.62.2",
 ]
 
 [[package]]

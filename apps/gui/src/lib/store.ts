@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { Platform } from "./bindings/Platform";
 import type { DeviceView } from "./bindings/DeviceView";
 import type { OpProgress } from "./bindings/OpProgress";
 import type { OpFinished } from "./bindings/OpFinished";
@@ -19,6 +20,9 @@ type AppState = {
   ops: Record<string, RunningOp>; // device → operação em andamento
   finished: Record<string, Record<string, OpFinished>>; // device → kind → último resultado
   help: { open: boolean; topic: string };
+  /** O que a plataforma oferece (no Windows: sem ext4 nem TRIM). */
+  platform: Platform;
+  setPlatform: (p: Platform) => void;
   /** Aviso no topo da janela (ex.: "pode tirar"); sobrevive ao disco sumir da lista. */
   notice: { text: string; tone: "ok" | "warn" } | null;
   dismissNotice: () => void;
@@ -52,6 +56,8 @@ export const useApp = create<AppState>((set, get) => ({
   error: null,
   ops: {},
   finished: {},
+  platform: { ext4: true, trim: true },
+  setPlatform: (platform) => set({ platform }),
   help: { open: false, topic: "comecar" },
   notice: null,
   dismissNotice: () => set({ notice: null }),
@@ -70,12 +76,17 @@ export const useApp = create<AppState>((set, get) => ({
   setError: (error) => set({ error }),
   select: (selected) => set({ selected }),
   opStarted: (device, id, kind) =>
-    set((s) => ({
+    set((s) => {
+      // A operação pode terminar (ex.: UAC recusado) antes de a resposta de
+      // start_operation chegar: não ressuscita uma operação já encerrada.
+      if (s.finished[device]?.[kind]?.id === id) return s;
+      return {
       ops: {
         ...s.ops,
         [device]: { id, kind, startedAt: Date.now(), phaseStartedAt: Date.now(), progress: null, cancelling: false },
       },
-    })),
+      };
+    }),
   opProgress: (device, id, progress) =>
     set((s) => {
       const op = s.ops[device];

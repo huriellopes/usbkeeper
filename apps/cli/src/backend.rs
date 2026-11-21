@@ -2,10 +2,6 @@
 
 use usbkeeper_core::{BlockDevice, CoreError, Ejector, Enumerator, Formatter, Mounts, Repairer};
 
-/// Resposta no Windows às operações que chegam na M4b.
-pub const WINDOWS_NEXT: &str = "no Windows esta operação chega na próxima etapa (M4b); \
-     por enquanto funcionam list, info, health, bench (leitura), history, report, recomendar e guia";
-
 pub type OpenRaw = fn(&str, bool) -> Result<Box<dyn BlockDevice>, CoreError>;
 
 pub struct Backend {
@@ -38,20 +34,22 @@ pub fn backend(include_virtual: bool) -> Backend {
 
 #[cfg(windows)]
 pub fn backend(include_virtual: bool) -> Backend {
-    use usbkeeper_windows::{RawDevice, WindowsEnumerator};
-    let next = || Box::new(unsupported::Unsupported(WINDOWS_NEXT));
+    use usbkeeper_windows::{
+        RawDevice, WindowsEjector, WindowsEnumerator, WindowsFormatter, WindowsMounts,
+        WindowsRepairer,
+    };
     Backend {
         enumerator: Box::new(WindowsEnumerator { include_virtual }),
-        formatter: next(),
-        mounts: next(),
-        ejector: next(),
-        repairer: next(),
-        open_raw: |path, write| {
-            if write {
-                return Err(CoreError::Backend(WINDOWS_NEXT.into()));
-            }
-            Ok(Box::new(RawDevice::open(path, false)?))
-        },
+        formatter: Box::new(WindowsFormatter {
+            // O FAT32 acima de 32 GiB é gravado pela própria CLI (subcomando oculto).
+            self_exe: std::env::current_exe()
+                .map(|p| p.display().to_string())
+                .unwrap_or_else(|_| "usbkeeper.exe".into()),
+        }),
+        mounts: Box::new(WindowsMounts),
+        ejector: Box::new(WindowsEjector),
+        repairer: Box::new(WindowsRepairer),
+        open_raw: |path, write| Ok(Box::new(RawDevice::open(path, write)?)),
     }
 }
 
@@ -68,14 +66,13 @@ pub fn backend(_include_virtual: bool) -> Backend {
     }
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", windows)))]
 pub mod unsupported {
     use usbkeeper_core::{
         CoreError, Device, Ejector, Enumerator, Formatter, Holder, Mounts, Repairer, Step,
         format::FormatRequest,
     };
 
-    #[cfg_attr(windows, allow(dead_code))]
     pub const LATER: &str = "plataforma ainda não suportada (macOS chega numa próxima etapa)";
 
     pub struct Unsupported(pub &'static str);

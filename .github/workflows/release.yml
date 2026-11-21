@@ -1,0 +1,147 @@
+name: release
+
+# Gera o .deb (Ubuntu 22.04, glibc 2.35) e o .msi (Windows), testa o .msi
+# (instalar → CLI no PATH → desinstalar) e cria o release como RASCUNHO com
+# os .sha256. Publicar o rascunho dispara o apt.yml (repositório APT).
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag (ex.: v0.9.0-rc1)'
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  TAG: ${{ github.event.inputs.tag || github.ref_name }}
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        name: Versão do workspace confere com a tag
+        run: |
+          version=$(sed -n '/^\[workspace.package\]/,/^\[/{s/^version *= *"\(.*\)"/\1/p}' Cargo.toml)
+          gui=$(jq -r .version apps/gui/src-tauri/tauri.conf.json)
+          echo "workspace=$version tauri=$gui tag=$TAG"
+          test "$version" = "$gui"
+          # rc/teste (v0.9.0-rc1) não precisa bater; release de verdade precisa.
+          case "$TAG" in
+            *-*) ;;
+            *) test "v$version" = "$TAG" ;;
+          esac
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  deb:
+    needs: version
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/gui/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev
+      - run: npm ci
+        working-directory: apps/gui
+      - run: npx tauri build --bundles deb
+        working-directory: apps/gui
+      - name: Não exige glibc acima de 2.35
+        run: |
+          deb=$(ls target/release/bundle/deb/*.deb)
+          mkdir x && dpkg-deb -x "$deb" x
+          max=$(objdump -T x/usr/bin/usbkeeper x/usr/bin/usbkeeper-gui | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1)
+          echo "maior símbolo: $max"
+          test "$(printf '%s\nGLIBC_2.35\n' "$max" | sort -V | tail -1)" = "GLIBC_2.35"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deb
+          path: target/release/bundle/deb/*.deb
+          if-no-files-found: error
+
+  msi:
+    needs: version
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/gui/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: npm ci
+        working-directory: apps/gui
+      - run: npx tauri build --bundles msi
+        working-directory: apps/gui
+      - name: Instalar, usar pelo PATH e desinstalar
+        shell: pwsh
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $msi = (Get-ChildItem target/release/bundle/msi/*.msi | Select-Object -First 1).FullName
+          $dir = Join-Path $env:ProgramFiles 'usbkeeper'
+          $p = Start-Process msiexec -ArgumentList '/i', "`"$msi`"", '/qn', '/l*v', 'install.log' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { Get-Content install.log -Tail 40; throw "instalação falhou: $($p.ExitCode)" }
+          if (-not (Test-Path (Join-Path $dir 'usbkeeper-gui.exe'))) { throw 'janela não instalada' }
+          $v = & (Join-Path $dir 'usbkeeper.exe') --version
+          if ("$v" -notmatch [regex]::Escape($env:VERSION)) { throw "versão inesperada: $v" }
+          $path = [Environment]::GetEnvironmentVariable('Path', 'Machine')
+          if (-not ($path.Split(';') | Where-Object { $_.TrimEnd('\') -eq $dir })) { throw "PATH sem $dir" }
+          # Terminal novo (PATH relido do registro): `usbkeeper` resolve.
+          $found = pwsh -NoProfile -Command "`$env:Path = [Environment]::GetEnvironmentVariable('Path','Machine'); (Get-Command usbkeeper).Source"
+          if ("$found" -ne (Join-Path $dir 'usbkeeper.exe')) { throw "usbkeeper no PATH aponta para: $found" }
+          Write-Host "ok: instalado, $v, no PATH"
+          $p = Start-Process msiexec -ArgumentList '/x', "`"$msi`"", '/qn' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "desinstalação falhou: $($p.ExitCode)" }
+          if (Test-Path (Join-Path $dir 'usbkeeper.exe')) { throw 'CLI ficou depois de desinstalar' }
+          $path = [Environment]::GetEnvironmentVariable('Path', 'Machine')
+          if ($path.Split(';') | Where-Object { $_.TrimEnd('\') -eq $dir }) { throw 'PATH ficou depois de desinstalar' }
+          Write-Host 'ok: desinstalado e PATH limpo'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: msi
+          path: target/release/bundle/msi/*.msi
+          if-no-files-found: error
+
+  release:
+    needs: [deb, msi]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: sha256
+        working-directory: dist
+        run: for f in *.deb *.msi; do sha256sum "$f" > "$f.sha256"; done; ls -la
+      - name: Release como rascunho
+        working-directory: dist
+        run: |
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber ./*
+          else
+            prerelease=""; case "$TAG" in *-*) prerelease="--prerelease" ;; esac
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft $prerelease \
+              --generate-notes --target "$GITHUB_SHA" --title "usbkeeper $TAG" ./*
+          fi

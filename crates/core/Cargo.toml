@@ -13,3 +13,6 @@ sha2.workspace = true
 
 [features]
 ts = ["dep:ts-rs"]
+
+[dev-dependencies]
+tempfile.workspace = true

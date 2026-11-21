@@ -34,6 +34,8 @@ pub fn command(tool: Tool, part: &str, repair: bool) -> (&'static str, Vec<Strin
         (Tool::Ntfs, true) => ("ntfsfix", &["-d"]),
         (Tool::Ext, false) => ("e2fsck", &["-f", "-n"]),
         (Tool::Ext, true) => ("e2fsck", &["-f", "-p"]),
+        // `tool_for` nunca escolhe o chkdsk no Linux.
+        (Tool::Chkdsk, _) => unreachable!("chkdsk só existe no Windows"),
     };
     let mut args: Vec<String> = flags.iter().map(|f| f.to_string()).collect();
     args.push(part.to_string());

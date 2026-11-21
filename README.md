@@ -6,14 +6,14 @@ detectar pendrives **falsificados** (capacidade adulterada) e medir velocidade, 
 > Status: **Linux completo** (CLI e janela): listar, formatar, ejetar, **detectar falsificados**, velocidade,
 > **saúde (SMART + varredura)**, **verificar/reparar**, **montar**, **autoteste SMART**, **apagar com segurança**,
 > **imagem do disco**, **gravar ISO**, **guia de ajuda**, **assistente de formatação**, histórico, laudo HTML e
-> tema claro/escuro. **Windows em andamento** (CLI de consulta); macOS depois (ver [Roadmap](#roadmap)).
+> tema claro/escuro. **Windows completo** (janela + CLI, instalador `.msi`); macOS depois (ver [Roadmap](#roadmap)).
 
 ## Instalar
 
 | Sistema | Situação | Como instalar |
 |---|---|---|
 | **Linux** (Debian, Ubuntu, Mint) | completo: CLI + janela | repositório APT (abaixo) |
-| **Windows** 10/11 | em andamento: CLI de consulta (listar, info, saúde, velocidade de leitura) | compilar com `cargo` (abaixo); instalador `.msi` na próxima versão |
+| **Windows** 10/11 | completo: janela + CLI (sem ext4 e TRIM) | instalador `.msi` (abaixo) |
 | **macOS** | ainda não suportado | previsto no [Roadmap](#roadmap) |
 | **WSL2** | via Linux, com o pendrive repassado pelo `usbipd` | ver [WSL2](#wsl2) |
 
@@ -30,7 +30,7 @@ sudo apt update && sudo apt install usbkeeper
 ```
 
 Instala a CLI (`usbkeeper`) e a janela (menu de aplicativos → usbkeeper). Requer amd64 com
-Ubuntu 24.04+, Mint 22+ ou Debian 13+. Impressão digital da chave:
+Ubuntu 22.04+, Mint 21+ ou Debian 12+. Impressão digital da chave:
 `70E1 1B52 B3A3 FBB9 C0EE A95F 4695 DA6D E72E 8FAF`.
 
 Sem o repositório: baixe o `.deb` e o `.sha256` de um [release](https://github.com/huriellopes/usbkeeper/releases) e
@@ -42,23 +42,40 @@ sudo apt install ./usbkeeper_*_amd64.deb
 
 Remover: `sudo apt remove usbkeeper` (o histórico em `~/.local/share/usbkeeper` fica).
 
-### Windows 10/11 (em andamento)
+### Windows 10/11
 
-Nesta etapa só a **CLI de consulta** funciona: `list`, `info`, `health` (SMART e varredura de
-leitura), `bench` (leitura), `history`, `report`, `recomendar` e `guia`. Formatar, apagar,
-imagem/ISO, reparar, montar e remover chegam na próxima etapa; a janela e o instalador `.msi`, depois.
+Baixe o `usbkeeper_*_x64_pt-BR.msi` do [release mais recente](https://github.com/huriellopes/usbkeeper/releases/latest)
+e abra. Ele instala a **janela** (menu Iniciar → usbkeeper) e a **CLI** (`usbkeeper` em qualquer
+terminal novo) em `C:\Program Files\usbkeeper`.
 
-Compilar e instalar (PowerShell):
+O instalador não tem assinatura digital paga, então o Windows mostra "O Windows protegeu o
+computador": clique em **Mais informações → Executar assim mesmo**. Para conferir que o arquivo é
+o publicado, compare com o `.sha256` do release:
 
 ```powershell
-winget install Rustlang.Rustup
-winget install Microsoft.VisualStudio.2022.BuildTools --override "--quiet --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
-# feche e abra o terminal, depois:
-cargo install --git https://github.com/huriellopes/usbkeeper --locked usbkeeper
-winget install smartmontools.smartmontools      # opcional: SMART de HD/SSD
+(Get-FileHash .\usbkeeper_*_x64_pt-BR.msi -Algorithm SHA256).Hash   # igual ao do .sha256
 ```
 
-Use num **terminal como administrador** (ler o disco exige), ou `sudo usbkeeper …` no
+A janela abre **sem privilégio**; cada operação que lê ou grava o disco (formatar, testar,
+apagar, saúde…) pede autorização do **UAC** naquela hora, como o `pkexec` no Linux. Remover não pede.
+SMART de HD/SSD é opcional: `winget install smartmontools.smartmontools`.
+
+Faz o mesmo que no Linux: listar, info, saúde (SMART e varredura), velocidade, teste de
+falsificado, **formatar** (FAT32, exFAT, NTFS), reparar (`chkdsk`), apagar, imagem do disco,
+gravar ISO, montar (atribuir letra) e **remover com segurança**. Não existem no Windows: ext4 (o
+Windows não lê) e o descarte (TRIM).
+
+**FAT32 acima de 32 GB:** o Windows se recusa a formatar, mas TVs, carros e videogames só leem
+FAT32. O usbkeeper tem um formatador FAT32 próprio e formata pendrives e HDs de qualquer tamanho
+até 2 TB: `usbkeeper format E: --fs fat32 --unmount`.
+
+Antes de gravar, o usbkeeper trava e desmonta todos os volumes do disco e os mantém travados até
+o fim. Se algum estiver em uso (janela do Explorer aberta, arquivo aberto), ele recusa **sem gravar
+nada** e pede para fechar. Como no Linux, gravar num pendrive com letra exige `--unmount`. O
+`remover` faz o mesmo que o ícone "Remover hardware com segurança"; se o Windows recusar, diz quem
+está usando o dispositivo.
+
+Na CLI, use um **terminal como administrador** (ler o disco exige), ou `sudo usbkeeper …` no
 Windows 11 24H2+ com o sudo ativado. O disco aceita várias formas de nome:
 
 ```powershell
@@ -68,7 +85,16 @@ usbkeeper health E: --scan     # SMART + leitura de toda a superfície
 ```
 
 O disco do sistema (C:) nunca é aceito como alvo. Histórico em `%LOCALAPPDATA%\usbkeeper`.
-Remover: `cargo uninstall usbkeeper`.
+Remover: Configurações → Aplicativos → usbkeeper → Desinstalar (o histórico fica).
+
+Sem o instalador, só a CLI, compilando (PowerShell):
+
+```powershell
+winget install Rustlang.Rustup
+winget install Microsoft.VisualStudio.2022.BuildTools --override "--quiet --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+# feche e abra o terminal, depois:
+cargo install --git https://github.com/huriellopes/usbkeeper --locked usbkeeper
+```
 
 ### macOS
 
@@ -86,7 +112,7 @@ npm ci && npx tauri build      # gera target/release/bundle/deb/usbkeeper_<vers�
 sudo apt install ../../target/release/bundle/deb/usbkeeper_*_amd64.deb
 ```
 
-## Interface gráfica (Linux)
+## Interface gráfica
 
 A janela lista os discos ao vivo (USB primeiro; o disco do sistema aparece com 🔒 e sem ações
 destrutivas) e tem abas para **Verificar** (fake-check), **Saúde**, **Velocidade**, **Formatar** e
@@ -315,7 +341,7 @@ O WSL2 não enxerga USB do Windows. Use [usbipd-win](https://github.com/dorssel/
 - [x] **M2**: `fake-check` (rápido estilo f3probe e completo grava+verifica) e `bench`
 - [x] **M2b**: `format --max-size` para reaproveitar só a capacidade real de um falso (como o f3fix)
 - [x] **M3**: `health` (SMART via smartctl + varredura), histórico SQLite, laudo HTML/PDF
-- [ ] **M4** (M4a base do Windows ✔): Windows
+- [x] **M4**: Windows (CLI completa, FAT32 > 32 GB próprio, janela com UAC por operação, instalador `.msi`)
 - [x] **M5**: GUI Tauri 2
 - [x] **M5b**: guia de ajuda (CLI e janela) e remoção segura em destaque
 - [x] **M6a**: tema, assistente de formatação, verificar/reparar, montar
