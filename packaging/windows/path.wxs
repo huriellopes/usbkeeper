@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Põe a pasta de instalação (onde fica usbkeeper.exe) no PATH do sistema;
+     a desinstalação remove a entrada. Referenciado em tauri.windows.conf.json. -->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Fragment>
+    <DirectoryRef Id="INSTALLDIR">
+      <Component Id="UsbkeeperPath" Guid="{CA80E6A4-51CF-4D81-AFC4-82875F63E370}">
+        <RegistryValue Root="HKLM" Key="Software\usbkeeper" Name="PathEntry" Type="integer" Value="1" KeyPath="yes" />
+        <Environment Id="UsbkeeperPathEnv" Name="PATH" Value="[INSTALLDIR]" Permanent="no" Part="last" Action="set" System="yes" />
+      </Component>
+    </DirectoryRef>
+  </Fragment>
+</Wix>

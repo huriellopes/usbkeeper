@@ -1,0 +1,16 @@
+{
+  "bundle": {
+    "targets": ["msi"],
+    "resources": {
+      "../../../target/release/usbkeeper.exe": "usbkeeper.exe"
+    },
+    "windows": {
+      "webviewInstallMode": { "type": "downloadBootstrapper" },
+      "wix": {
+        "language": "pt-BR",
+        "fragmentPaths": ["../../../packaging/windows/path.wxs"],
+        "componentRefs": ["UsbkeeperPath"]
+      }
+    }
+  }
+}
