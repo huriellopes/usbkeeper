@@ -1,4 +1,4 @@
-# e2e do usbkeeper no Windows (M4a leitura, M4b1 gravação, M4b2 formatar/reparar/montar/remover). Roda como administrador
+# e2e do usbkeeper no Windows (M4a leitura, M4b1 gravação, M4b2 formatar/reparar/montar/remover, M4c1 canais da janela). Roda como administrador
 # (o runner do GitHub já é): cria e anexa um VHD de 256 MB, formata com as
 # ferramentas do próprio Windows e confere o que o usbkeeper enxerga.
 #   pwsh scripts/e2e-windows.ps1 -Bin target\debug\usbkeeper.exe
@@ -200,6 +200,12 @@ try {
   } else { Bad "FAT32 de 40 GB sem letra" }
   "select vdisk file=`"$big`"`ndetach vdisk" | Set-Content (Join-Path $work 'bigdet.txt') -Encoding ascii
   diskpart /s (Join-Path $work 'bigdet.txt') | Out-Null
+
+  # ---------------------------------------------------------------- M4c1: caminho da janela (UAC + canais privados)
+  $env:USBKEEPER_E2E_BIN = $Bin
+  $env:USBKEEPER_E2E_DISK = "PhysicalDrive$n"
+  $script:last = @(cargo test -q -p usbkeeper-windows --test elevated -- --ignored --test-threads=1 2>&1 | ForEach-Object { "$_" })
+  Check ($LASTEXITCODE -eq 0) "CLI elevada pelos canais: lista, progresso e cancelamento"
 
   $hist = UsbkJson history --json
   Check ($null -ne $hist) "histórico em %LOCALAPPDATA%"

@@ -7,6 +7,7 @@
 pub mod eject;
 pub mod format;
 pub mod paths;
+pub mod pipes;
 pub mod repair;
 pub mod storage;
 
@@ -18,6 +19,8 @@ mod enumerate;
 mod mounts;
 #[cfg(windows)]
 mod rawdev;
+#[cfg(windows)]
+pub mod watch;
 
 #[cfg(windows)]
 pub use admin::is_elevated;

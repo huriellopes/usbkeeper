@@ -8,7 +8,7 @@ const start = vi.fn((..._a: unknown[]) => Promise.resolve(1));
 vi.mock("../../lib/api", () => ({ startOperation: (...a: unknown[]) => start(...a) }));
 beforeEach(() => {
   start.mockClear();
-  useApp.setState({ ops: {}, finished: {} });
+  useApp.setState({ ops: {}, finished: {}, platform: { ext4: true, trim: true } });
 });
 
 describe("aba Apagar", () => {
@@ -25,6 +25,13 @@ describe("aba Apagar", () => {
       { kind: "wipe", device: "/dev/sdb", random: false, passes: 1, verify: true, discard: false },
       "ABC",
     );
+  });
+
+  it("sem TRIM na plataforma (Windows): não oferece Descartar", () => {
+    useApp.setState({ platform: { ext4: false, trim: false } });
+    render(<WipeTab view={view()} onFormat={() => {}} />);
+    expect(screen.queryByRole("radio", { name: /Descartar/ })).toBeNull();
+    expect(screen.getByRole("radio", { name: /zeros/i })).toBeTruthy();
   });
 
   it("descartar desliga as opções de sobrescrita", () => {

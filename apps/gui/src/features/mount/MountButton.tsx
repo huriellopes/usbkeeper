@@ -4,11 +4,13 @@ import type { DeviceView } from "../../lib/bindings/DeviceView";
 
 const MOUNTABLE = ["vfat", "exfat", "ntfs", "ntfs3", "ext2", "ext3", "ext4"];
 const btn = { border: "1px solid var(--line)" };
+/** Ponto de montagem que dá para abrir: `/media/…` ou a raiz de uma letra (`E:\`). */
+const openable = (m: string) => m.startsWith("/") || /^[A-Za-z]:\\$/.test(m);
 
 /** Montar (para aparecer no gerenciador de arquivos) ou abrir a pasta já montada. */
 export function MountButton({ view }: { view: DeviceView }) {
   const d = view.device;
-  const current = [...d.mountpoints, ...d.partitions.flatMap((p) => p.mountpoints)].filter((m) => m.startsWith("/"));
+  const current = [...d.mountpoints, ...d.partitions.flatMap((p) => p.mountpoints)].filter(openable);
   const [justMounted, setJustMounted] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);

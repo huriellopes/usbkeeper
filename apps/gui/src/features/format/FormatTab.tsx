@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useApp } from "../../lib/store";
 import type { DeviceView } from "../../lib/bindings/DeviceView";
 import type { OpRequest } from "../../lib/bindings/OpRequest";
 import { FS, type Fs, validateLabel } from "../../lib/label";
@@ -11,6 +12,7 @@ export type FormatInitial = { filesystem?: Fs; table?: "mbr" | "gpt"; maxBytes?:
 type Props = { view: DeviceView; initial?: FormatInitial; onSubmit: (req: OpRequest) => void; busy: boolean };
 
 export function FormatTab({ view, initial = {}, onSubmit, busy }: Props) {
+  const ext4 = useApp((s) => s.platform.ext4);
   const [fs, setFs] = useState<Fs>(initial.filesystem ?? "exfat");
   const [label, setLabel] = useState("");
   const [table, setTable] = useState<"auto" | "mbr" | "gpt">(initial.table ?? "auto");
@@ -40,7 +42,7 @@ export function FormatTab({ view, initial = {}, onSubmit, busy }: Props) {
           <HelpButton topic={GUIDE.filesystems} label="sistema de arquivos" />
         </span>
         <select aria-label="Sistema de arquivos" value={fs} onChange={(e) => setFs(e.target.value as Fs)} className="mt-1 rounded-md px-2 py-1">
-          {FS.map((f) => (
+          {FS.filter((f) => f.id !== "ext4" || ext4).map((f) => (
             <option key={f.id} value={f.id}>{f.id}</option>
           ))}
         </select>

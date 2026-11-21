@@ -18,3 +18,16 @@ describe("store.setDevices", () => {
     expect(useApp.getState().selected).toBe("/dev/sdc");
   });
 });
+
+describe("store.opStarted", () => {
+  it("não ressuscita operação que já terminou (UAC recusado antes da resposta)", () => {
+    useApp.setState({ ops: {}, finished: {} });
+    useApp.getState().opFinished({
+      id: 7, device: "/dev/sdc", kind: "format", ok: false, result: null, error: "autorização negada", holders: [],
+    });
+    useApp.getState().opStarted("/dev/sdc", 7, "format");
+    expect(useApp.getState().ops["/dev/sdc"]).toBeUndefined();
+    useApp.getState().opStarted("/dev/sdc", 8, "format");
+    expect(useApp.getState().ops["/dev/sdc"]?.id).toBe(8);
+  });
+});

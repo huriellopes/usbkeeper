@@ -29,3 +29,8 @@ usbkeeper-guide.workspace = true
 
 [target.'cfg(target_os = "linux")'.dependencies]
 usbkeeper-linux.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+usbkeeper-windows.workspace = true
+webview2-com = "0.39"
+windows-core = "0.62"

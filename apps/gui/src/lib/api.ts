@@ -10,7 +10,9 @@ import type { GuideTopic } from "./bindings/GuideTopic";
 import type { Advice } from "./bindings/Advice";
 import type { Usage } from "./bindings/Usage";
 import type { BigFiles } from "./bindings/BigFiles";
+import type { Platform } from "./bindings/Platform";
 
+export const platform = () => invoke<Platform>("platform");
 export const listDevices = () => invoke<DeviceView[]>("list_devices");
 export const usbHint = () => invoke<string | null>("usb_hint");
 export const deviceHolders = (path: string) => invoke<Holder[]>("device_holders", { path });

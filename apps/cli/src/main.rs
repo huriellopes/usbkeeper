@@ -359,7 +359,7 @@ fn main() {
     unsafe {
         libc::signal(libc::SIGPIPE, libc::SIG_DFL);
     }
-    let cli = Cli::parse();
+    let cli = Cli::parse_from(args());
     machine::set(machine::Mode {
         progress_json: cli.progress_json,
         cancel_stdin: cli.cancel_stdin,
@@ -372,6 +372,33 @@ fn main() {
         }
         std::process::exit(1);
     }
+}
+
+/// Argumentos do processo. No Windows, a janela abre a CLI pelo UAC com
+/// `--pipe <nonce>` antes de tudo: os canais privados viram a entrada, a
+/// saída e o erro padrão (o UAC não deixa ligá-los de outro jeito).
+#[cfg(windows)]
+fn args() -> Vec<std::ffi::OsString> {
+    use usbkeeper_windows::pipes;
+    match pipes::split_pipe_arg(std::env::args_os().collect()) {
+        Ok((Some(nonce), rest)) => {
+            if let Err(e) = pipes::attach(&nonce) {
+                eprintln!("erro: não consegui falar com a janela: {e}");
+                std::process::exit(3);
+            }
+            rest
+        }
+        Ok((None, rest)) => rest,
+        Err(e) => {
+            eprintln!("erro: {e}");
+            std::process::exit(2);
+        }
+    }
+}
+
+#[cfg(not(windows))]
+fn args() -> Vec<std::ffi::OsString> {
+    std::env::args_os().collect()
 }
 
 fn run(cli: Cli) -> Result<()> {

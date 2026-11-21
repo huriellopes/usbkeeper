@@ -4250,6 +4250,9 @@ dependencies = [
  "usbkeeper-history",
  "usbkeeper-linux",
  "usbkeeper-smart",
+ "usbkeeper-windows",
+ "webview2-com",
+ "windows-core 0.62.2",
 ]
 
 [[package]]
