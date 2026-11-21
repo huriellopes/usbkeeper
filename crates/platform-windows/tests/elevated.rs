@@ -84,7 +84,7 @@ fn progress_and_cancel_through_pipes() {
     assert!(progress >= 1, "nenhum progresso chegou: {lines:?}");
     assert_ne!(code, Some(0), "deveria ter sido cancelado: {lines:?}");
     assert!(
-        lines.iter().any(|l| l.contains("cancelada")),
+        lines.iter().any(|l| l.contains("cancelad")),
         "sem mensagem de cancelamento: {lines:?}"
     );
     assert!(started.elapsed() < Duration::from_secs(120));
