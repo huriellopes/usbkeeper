@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useApp } from "../../lib/store";
 import type { DeviceView } from "../../lib/bindings/DeviceView";
 import type { WipeReport } from "../../lib/bindings/WipeReport";
 import { duration, humanBytes } from "../../lib/format";
@@ -17,6 +18,7 @@ const METHODS: { id: Method; label: string; hint: string }[] = [
 export function WipeTab({ view, onFormat }: { view: DeviceView; onFormat: () => void }) {
   const op = useOperation(view);
   const d = view.device;
+  const trim = useApp((s) => s.platform.trim);
   const [method, setMethod] = useState<Method>("zeros");
   const [passes, setPasses] = useState(1);
   const [verify, setVerify] = useState(false);
@@ -36,7 +38,7 @@ export function WipeTab({ view, onFormat }: { view: DeviceView; onFormat: () => 
         use criptografia desde o início.
       </p>
       <div role="radiogroup" aria-label="Método" className="flex flex-col gap-2">
-        {METHODS.map((m) => (
+        {METHODS.filter((m) => m.id !== "discard" || trim).map((m) => (
           <button key={m.id} type="button" role="radio" aria-checked={method === m.id} onClick={() => setMethod(m.id)}
             className="rounded-lg px-3 py-2 text-left text-sm"
             style={{ border: `1px solid ${method === m.id ? "var(--accent)" : "var(--line)"}` }}>

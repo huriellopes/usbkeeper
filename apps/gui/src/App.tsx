@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { guideTopics, listDevices, onOpFinished, onOpProgress, usbHint } from "./lib/api";
+import { guideTopics, listDevices, onOpFinished, onOpProgress, platform, usbHint } from "./lib/api";
 import type { GuideTopic } from "./lib/bindings/GuideTopic";
 import { useApp } from "./lib/store";
 import { Sidebar } from "./features/sidebar/Sidebar";
@@ -24,6 +24,10 @@ export default function App() {
       unlisten.forEach((p) => p.then((f) => f()));
     };
   }, [opProgress, opFinished]);
+  const setPlatform = useApp((s) => s.setPlatform);
+  useEffect(() => {
+    platform().then(setPlatform).catch(() => {});
+  }, [setPlatform]);
   useEffect(() => {
     usbHint().then(setHint).catch(() => setHint(null));
   }, []);

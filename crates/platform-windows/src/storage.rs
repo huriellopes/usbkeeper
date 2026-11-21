@@ -120,10 +120,16 @@ fn usb_ids(parent: &str) -> Option<(String, String)> {
     Some((vid.to_ascii_lowercase(), pid.to_ascii_lowercase()))
 }
 
+/// Letra de um ponto de montagem que seja a **raiz** (`E:`/`E:\`). Montagem em
+/// pasta (`D:\pasta\`) pertence a outro volume e não conta: senão `apagar D:`
+/// poderia escolher o pendrive montado nessa pasta.
 fn letter_of(mount: &str) -> Option<char> {
-    let mut c = mount.chars();
-    let l = c.next()?;
-    (l.is_ascii_alphabetic() && c.next() == Some(':')).then(|| l.to_ascii_uppercase())
+    match mount.as_bytes() {
+        [l, b':'] | [l, b':', b'\\'] if l.is_ascii_alphabetic() => {
+            Some((*l as char).to_ascii_uppercase())
+        }
+        _ => None,
+    }
 }
 
 pub fn parse(json: &str) -> Result<Vec<Device>, CoreError> {
@@ -396,6 +402,11 @@ mod tests {
             Some("PhysicalDrive0")
         );
         assert!(find(&d, "9").is_none() && find(&d, "Z:").is_none() && find(&d, "sdb").is_none());
+        // O VHD está montado na pasta D:\montado\vhd\: isso NÃO faz dele o disco "D:".
+        assert!(
+            find(&d, "D:").is_none(),
+            "montagem em pasta não é a letra do disco"
+        );
     }
 
     #[test]
